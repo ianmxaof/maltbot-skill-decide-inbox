@@ -1,0 +1,190 @@
+import type {
+  SignalFeedCard,
+  DecideInboxItem,
+  SecurityPosture,
+  AgentTimelineEvent,
+  RadarItem,
+  SkillCard,
+} from "@/types/dashboard";
+
+export const mockSignalFeeds: SignalFeedCard[] = [
+  {
+    id: "sf1",
+    name: "backend-api",
+    source: "github",
+    projectId: "proj-1",
+    signalStrength: 78,
+    lastDelta: "14 new contributors after breaking change merged",
+    whyItMatters: "Contributor spike often precedes stability issues; worth reviewing runbooks.",
+    confidence: 0.82,
+    lastFetchedAt: "2025-01-29T08:00:00Z",
+  },
+  {
+    id: "sf2",
+    name: "r/yourdomain",
+    source: "reddit",
+    signalStrength: 65,
+    lastDelta: "Recurring complaint pattern detected (n=43)",
+    whyItMatters: "Same pain point across threads — candidate for docs or product fix.",
+    confidence: 0.71,
+    lastFetchedAt: "2025-01-29T07:30:00Z",
+  },
+  {
+    id: "sf3",
+    name: "@maintainer",
+    source: "x",
+    signalStrength: 55,
+    lastDelta: "Maintainer sentiment shifted negative in last 72h",
+    whyItMatters: "Upstream dependency may get less support; consider alternatives.",
+    confidence: 0.6,
+    lastFetchedAt: "2025-01-29T06:00:00Z",
+  },
+];
+
+export const mockDecideInbox: DecideInboxItem[] = [
+  {
+    id: "di1",
+    projectId: "proj-1",
+    whatChanged: "P99 latency crossed SLO threshold (450ms → 520ms) in backend-api.",
+    whyItMatters: "Error budget will be exhausted in ~12 days at current rate.",
+    options: [
+      { id: "o1", label: "A. Roll back last deploy", summary: "Revert to previous release." },
+      { id: "o2", label: "B. Scale replicas +2", summary: "Buy time while investigating." },
+      { id: "o3", label: "C. Investigate first", summary: "Profile and fix before scaling." },
+    ],
+    riskLevel: "high",
+    recommendation: "B (scale) while running C in parallel; avoid rollback unless B fails.",
+    at: "2025-01-29T07:00:00Z",
+    status: "pending",
+  },
+  {
+    id: "di2",
+    whatChanged: "Dependency lodash@4.17.21 has a new CVE (low severity).",
+    whyItMatters: "Compliance may require patching; low exploit likelihood.",
+    options: [
+      { id: "o4", label: "A. Upgrade now", summary: "Bump to patched minor." },
+      { id: "o5", label: "B. Ignore", summary: "Accept risk for this sprint." },
+    ],
+    riskLevel: "low",
+    recommendation: "A — low effort, clears audit.",
+    at: "2025-01-28T16:00:00Z",
+    status: "pending",
+  },
+];
+
+export const mockSecurityPosture: SecurityPosture = {
+  publicExposure: false,
+  portRiskScore: 22,
+  apiKeys: [
+    { id: "k1", label: "GitHub (read)", lastUsedAt: "2025-01-29T08:00:00Z" },
+    { id: "k2", label: "OpenAI", lastUsedAt: "2025-01-28T14:00:00Z" },
+  ],
+  pluginTrust: [
+    { name: "GitHub sync", level: "verified" },
+    { name: "Slack notify", level: "community" },
+    { name: "Custom script", level: "unknown" },
+  ],
+  attackerPreview: "If exposed: project names, feed titles (no secrets), agent names. No API keys or repo contents.",
+};
+
+export const mockAgentTimeline: AgentTimelineEvent[] = [
+  {
+    id: "te1",
+    agentId: "a1",
+    agentName: "SLO Reviewer",
+    projectId: "proj-1",
+    kind: "observed",
+    summary: "Observed P99 crossing 500ms in backend-api over last 6h.",
+    at: "2025-01-29T06:30:00Z",
+  },
+  {
+    id: "te2",
+    agentId: "a1",
+    agentName: "SLO Reviewer",
+    projectId: "proj-1",
+    kind: "hypothesis",
+    summary: "Formed hypothesis: new DB query in deploy abc123 is causing tail latency.",
+    at: "2025-01-29T06:35:00Z",
+  },
+  {
+    id: "te3",
+    agentId: "a1",
+    agentName: "SLO Reviewer",
+    projectId: "proj-1",
+    kind: "cross_check",
+    summary: "Cross-checked against repo: commit abc123 added N+1 in /users endpoint.",
+    at: "2025-01-29T06:40:00Z",
+  },
+  {
+    id: "te4",
+    agentId: "a1",
+    agentName: "SLO Reviewer",
+    projectId: "proj-1",
+    kind: "proposal",
+    summary: "Generated proposal: add index on users.team_id and deploy hotfix.",
+    at: "2025-01-29T06:45:00Z",
+  },
+  {
+    id: "te5",
+    agentId: "a1",
+    agentName: "SLO Reviewer",
+    projectId: "proj-1",
+    kind: "awaiting_decision",
+    summary: "Awaiting decision: approve fix, scale first, or roll back.",
+    at: "2025-01-29T06:50:00Z",
+  },
+];
+
+export const mockRadar: RadarItem[] = [
+  {
+    id: "rad1",
+    kind: "automation_opportunity",
+    title: "Native support for X in 3 dependencies",
+    summary: "Three tools you depend on just added native support for X.",
+    impact: "You could delete 412 lines of custom glue code.",
+    at: "2025-01-29T05:00:00Z",
+    projectId: "proj-1",
+  },
+  {
+    id: "rad2",
+    kind: "dependency_churn",
+    title: "react-dom 18.2 → 19.0 major",
+    summary: "Upstream released major; 4 repos still on 18.x.",
+    at: "2025-01-28T12:00:00Z",
+  },
+  {
+    id: "rad3",
+    kind: "ci_failure",
+    title: "main branch failing: e2e timeout",
+    summary: "CI has failed 3 times on main; e2e suite timeout.",
+    at: "2025-01-29T07:15:00Z",
+    projectId: "proj-1",
+  },
+];
+
+export const mockSkills: SkillCard[] = [
+  {
+    id: "sk1",
+    name: "SLO Reviewer",
+    description: "Watches SLOs, forms hypotheses, suggests runbooks.",
+    authorId: "auth1",
+    authorName: "Maltbot Core",
+    authorReputation: "verified",
+    dependencyRiskScore: 5,
+    usageCount: 1200,
+    timeToRollback: "~2 min",
+    hasDryRun: true,
+  },
+  {
+    id: "sk2",
+    name: "Reddit Sentiment",
+    description: "Tracks subreddit sentiment and recurring complaint patterns.",
+    authorId: "auth2",
+    authorName: "Community",
+    authorReputation: "community",
+    dependencyRiskScore: 35,
+    usageCount: 89,
+    timeToRollback: "~5 min",
+    hasDryRun: true,
+  },
+];
