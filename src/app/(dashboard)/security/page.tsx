@@ -1,5 +1,6 @@
 import { mockSecurityPosture } from "@/data/mock-dashboard";
 import { formatDistanceToNow } from "date-fns";
+import { OpenClawStatusBlock } from "@/components/OpenClawStatusBlock";
 
 export default function SecurityPosturePage() {
   const s = mockSecurityPosture;
@@ -13,6 +14,10 @@ export default function SecurityPosturePage() {
           Public exposure · port risk · API key inventory · plugin trust. What an attacker could see (read-only, sanitized).
         </p>
       </section>
+
+      <div className="mb-6">
+        <OpenClawStatusBlock />
+      </div>
 
       <div className="space-y-6">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">

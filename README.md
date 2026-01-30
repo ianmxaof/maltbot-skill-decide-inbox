@@ -48,15 +48,20 @@ context-hub/
 │   │       ├── timeline/page.tsx    # Agent Timeline
 │   │       ├── radar/page.tsx       # CI/CR Radar
 │   │       └── skills/page.tsx      # Skill Marketplace
+│   │   └── api/openclaw/           # OpenClaw API (status, health, sessions, skills, approvals)
 │   ├── components/
 │   │   ├── DashboardTabs.tsx       # Tab navigation
+│   │   ├── OpenClawStatusBlock.tsx # OpenClaw status (Security tab)
 │   │   ├── IdleBanner, SignalDriftBanner, WhatChangedBanner
 │   │   ├── ProblemSpace, LinkedResources, DecisionLog
 │   ├── data/
 │   │   ├── mock-projects.ts
 │   │   └── mock-dashboard.ts       # Feeds, Decide, Security, Timeline, Radar, Skills
-│   ├── lib/idle.ts
+│   ├── lib/
+│   │   ├── idle.ts
+│   │   └── openclaw.ts            # CLI adapter (whitelist, timeouts, safe errors)
 │   └── types/
+│       ├── api.ts                 # ApiError, apiError()
 │       ├── project.ts
 │       └── dashboard.ts            # SignalFeedCard, DecideInboxItem, SecurityPosture, etc.
 ├── package.json
@@ -82,6 +87,33 @@ If the app works in Cursor’s built-in browser but shows errors or unstyled con
 2. **Hard refresh** (Ctrl+Shift+R / Cmd+Shift+R) or clear cache for that origin so the browser doesn’t use old HTML that points to outdated asset URLs (which cause 404s for CSS/JS).
 3. **CSP**: The dev server sends a Content-Security-Policy that allows `unsafe-eval` so Next.js’s client runtime isn’t blocked. If your environment adds a stricter CSP (e.g. corporate proxy or extension), you may still see CSP errors; use the same origin and a normal profile if possible.
 4. **Production**: Run `npm run build` then `npm run start` and open the same URL in the external browser. Avoid serving the built output with a plain static file server (e.g. opening `file://` or dropping `.next` into nginx without the Node server); that will 404 for `_next` assets.
+
+---
+
+## OpenClaw backend
+
+The dashboard talks to OpenClaw only via Next.js API routes. The browser never calls OpenClaw or the Gateway directly.
+
+**Integration model:** CLI is primary; HTTP (Gateway) is optional. Each adapter call uses either CLI or HTTP, never both in a single request.
+
+### Environment variables
+
+| Variable | Purpose |
+|----------|--------|
+| `OPENCLAW_CLI_PATH` | Optional. CLI executable (default: `openclaw` on PATH). |
+| `OPENCLAW_GATEWAY_URL` | Optional. e.g. `http://127.0.0.1:18789`. When set with token, adapter may use HTTP for health/tools. |
+| `OPENCLAW_GATEWAY_TOKEN` | Required when using HTTP. |
+| `OPENCLAW_CLI_TIMEOUT_MS` | Optional. Default 15000 ms for most ops; status uses 5 s so the UI does not hang when the Gateway is down. |
+
+### What is live vs mocked
+
+- **Status / Health / Sessions / Skills / Approvals:** Served by the OpenClaw adapter (CLI or HTTP when configured). Skills are mapped to `SkillCard` with explicit defaults when OpenClaw does not provide fields (see code/README).
+- **Context Hub (projects) and Decide Inbox:** Remain fully mocked. OpenClaw has no "projects" API; sessions do not provide problemSpaceMarkdown, linkedRepos, decisionLog, etc. Projects can be mapped from sessions or a future OpenClaw skill later (TODOs in code).
+
+### Optional follow-ups
+
+- **Version:** Status/health can include an optional `openclaw --version` check.
+- **Resilience:** Cache "last known good" status or a circuit breaker after N failures; document in README.
 
 ---
 

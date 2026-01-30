@@ -1,6 +1,11 @@
+import { getSkills } from "@/lib/openclaw";
 import { mockSkills } from "@/data/mock-dashboard";
 
-export default function SkillsPage() {
+/** Skills from OpenClaw CLI when available; fallback to mock on error or missing env. */
+export default async function SkillsPage() {
+  const result = await getSkills();
+  const skills = result.ok ? result.skills : mockSkills;
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <section className="mb-8">
@@ -10,10 +15,15 @@ export default function SkillsPage() {
         <p className="mt-1 text-zinc-400">
           Skills with reputation: author identity, dependency risk, usage telemetry, time-to-rollback. Dry-run before install.
         </p>
+        {!result.ok && (
+          <p className="mt-2 text-xs text-amber-400">
+            OpenClaw unavailable ({result.error.error.code}); showing mock data.
+          </p>
+        )}
       </section>
 
       <ul className="space-y-4">
-        {mockSkills.map((s) => (
+        {skills.map((s) => (
           <li key={s.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
