@@ -14,6 +14,7 @@ const TABS = [
   { href: "/radar", label: "CI/CR Radar", short: "Radar" },
   { href: "/skills", label: "Skills", short: "Skills" },
   { href: "/moltbook", label: "Moltbook Hub", short: "Moltbook" },
+  { href: "/settings", label: "Settings", short: "Settings" },
 ] as const;
 
 export function DashboardTabs() {

@@ -118,6 +118,28 @@ export async function getStatus(): Promise<{ ok: true; raw: string; version?: st
   };
 }
 
+const GATEWAY_CALL_ALLOWED = new Set(["config.get", "config.patch"]);
+
+/** Call Gateway RPC (config.get, config.patch only). Params are server-controlled. */
+export async function gatewayCall(
+  method: string,
+  params: Record<string, unknown>
+): Promise<{ ok: true; data: unknown } | { ok: false; error: ApiError }> {
+  if (!GATEWAY_CALL_ALLOWED.has(method)) {
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, "Method not allowed") };
+  }
+  const bin = getCliPath();
+  const args = ["gateway", "call", method, "--params", JSON.stringify(params)];
+  const result = await runCli(args, true, false);
+  if (!result.ok) return result;
+  try {
+    const data = JSON.parse(result.stdout) as unknown;
+    return { ok: true, data };
+  } catch {
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.PARSE_ERROR, "Invalid JSON from gateway call") };
+  }
+}
+
 export async function getGatewayStatus(): Promise<{ ok: true; data: unknown } | { ok: false; error: ApiError }> {
   const result = await runCli(WHITELIST["gateway-status"].args, true, true);
   if (!result.ok) return result;
