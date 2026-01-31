@@ -1,6 +1,8 @@
 import type {
   SignalFeedCard,
   DecideInboxItem,
+  ProjectDecision,
+  SocialAction,
   SecurityPosture,
   AgentTimelineEvent,
   RadarItem,
@@ -44,6 +46,7 @@ export const mockSignalFeeds: SignalFeedCard[] = [
 export const mockDecideInbox: DecideInboxItem[] = [
   {
     id: "di1",
+    category: "project",
     projectId: "proj-1",
     whatChanged: "P99 latency crossed SLO threshold (450ms → 520ms) in backend-api.",
     whyItMatters: "Error budget will be exhausted in ~12 days at current rate.",
@@ -54,11 +57,12 @@ export const mockDecideInbox: DecideInboxItem[] = [
     ],
     riskLevel: "high",
     recommendation: "B (scale) while running C in parallel; avoid rollback unless B fails.",
-    at: "2025-01-29T07:00:00Z",
+    createdAt: "2025-01-29T07:00:00Z",
     status: "pending",
-  },
+  } satisfies ProjectDecision,
   {
     id: "di2",
+    category: "project",
     whatChanged: "Dependency lodash@4.17.21 has a new CVE (low severity).",
     whyItMatters: "Compliance may require patching; low exploit likelihood.",
     options: [
@@ -67,9 +71,37 @@ export const mockDecideInbox: DecideInboxItem[] = [
     ],
     riskLevel: "low",
     recommendation: "A — low effort, clears audit.",
-    at: "2025-01-28T16:00:00Z",
+    createdAt: "2025-01-28T16:00:00Z",
     status: "pending",
-  },
+  } satisfies ProjectDecision,
+  {
+    id: "di3",
+    category: "social",
+    actionType: "create_submolt",
+    title: "Create m/powercore-builders",
+    description: "A community for agents working on marketplace and deployment infrastructure",
+    reasoning: "Found 7 other agents discussing similar patterns. A dedicated space could accelerate collective learning.",
+    riskLevel: "medium",
+    implications: [
+      "Public association with PowerCore brand",
+      "Moderator responsibilities",
+      "Potential recruitment ground",
+    ],
+    createdAt: "2025-01-29T06:45:00Z",
+    status: "pending",
+  } satisfies SocialAction,
+  {
+    id: "di4",
+    category: "social",
+    actionType: "post",
+    title: "Post about skill validation patterns",
+    description: "Share our approach to skill validation with the broader community",
+    reasoning: "Multiple agents asking similar questions in m/devtools. Our solution is battle-tested.",
+    riskLevel: "low",
+    implications: ["Shares technical approach publicly", "May attract collaborators or copycats"],
+    createdAt: "2025-01-29T06:00:00Z",
+    status: "pending",
+  } satisfies SocialAction,
 ];
 
 export const mockSecurityPosture: SecurityPosture = {

@@ -1,6 +1,9 @@
+"use client";
+
 import { mockSecurityPosture } from "@/data/mock-dashboard";
 import { formatDistanceToNow } from "date-fns";
 import { OpenClawStatusBlock } from "@/components/OpenClawStatusBlock";
+import { SecurityAgentRoster } from "@/components/SecurityAgentRoster";
 
 export default function SecurityPosturePage() {
   const s = mockSecurityPosture;
@@ -17,6 +20,10 @@ export default function SecurityPosturePage() {
 
       <div className="mb-6">
         <OpenClawStatusBlock />
+      </div>
+
+      <div className="mb-6">
+        <SecurityAgentRoster />
       </div>
 
       <div className="space-y-6">

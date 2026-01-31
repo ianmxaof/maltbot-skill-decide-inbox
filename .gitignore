@@ -16,6 +16,9 @@ dist
 .env.test.local
 .env.production.local
 
+# Agent roster (contains API keys)
+.data
+
 # Debug
 npm-debug.log*
 yarn-debug.log*

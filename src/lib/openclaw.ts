@@ -14,6 +14,8 @@ const execFileAsync = promisify(execFile);
 
 const STATUS_TIMEOUT_MS = 5000;
 const DEFAULT_TIMEOUT_MS = 15000;
+/** Agent runs (LLM + tools) often take 30s–2min; use longer default */
+const AGENT_TIMEOUT_MS = 120000;
 
 function getCliPath(): string {
   return process.env.OPENCLAW_CLI_PATH ?? "openclaw";
@@ -28,19 +30,41 @@ function getTimeout(short: boolean): number {
   return short ? STATUS_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
 }
 
+function getAgentTimeout(): number {
+  const env = process.env.OPENCLAW_AGENT_TIMEOUT_MS;
+  if (env != null) {
+    const n = parseInt(env, 10);
+    if (!Number.isNaN(n) && n > 0) return n;
+  }
+  return AGENT_TIMEOUT_MS;
+}
+
 type CliResult = { ok: true; stdout: string; stderr?: string } | { ok: false; error: ApiError };
 
-async function runCli(args: string[], jsonOutput: boolean, shortTimeout: boolean): Promise<CliResult> {
+/** On Windows, .cmd/.bat must be run with shell: true or execFile yields EINVAL */
+function needsShell(cliPath: string): boolean {
+  if (process.platform !== "win32") return false;
+  const lower = cliPath.toLowerCase();
+  return lower.endsWith(".cmd") || lower.endsWith(".bat");
+}
+
+async function runCli(
+  args: string[],
+  jsonOutput: boolean,
+  shortTimeout: boolean,
+  overrideTimeoutMs?: number
+): Promise<CliResult> {
   const bin = getCliPath();
-  const timeout = getTimeout(shortTimeout);
+  const timeout = overrideTimeoutMs ?? getTimeout(shortTimeout);
   const maxBuffer = 2 * 1024 * 1024; // 2MB
+  const useShell = needsShell(bin);
 
   try {
     const { stdout, stderr } = await execFileAsync(bin, args, {
       timeout,
       maxBuffer,
       encoding: "utf8",
-      shell: false,
+      shell: useShell,
     });
     return { ok: true, stdout: stdout ?? "", stderr: (stderr as string) ?? "" };
   } catch (err: unknown) {
@@ -71,7 +95,12 @@ export async function getVersion(): Promise<{ ok: true; version: string } | { ok
   const bin = getCliPath();
   const timeout = 3000;
   try {
-    const { stdout } = await execFileAsync(bin, ["--version"], { timeout, encoding: "utf8", maxBuffer: 1024 });
+    const { stdout } = await execFileAsync(bin, ["--version"], {
+      timeout,
+      encoding: "utf8",
+      maxBuffer: 1024,
+      shell: needsShell(bin),
+    });
     return { ok: true, version: (stdout ?? "").trim() || "unknown" };
   } catch {
     return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.NOT_FOUND, "OpenClaw CLI not found") };
@@ -198,4 +227,49 @@ export async function getApprovals(): Promise<{ ok: true; raw: string } | { ok: 
   const result = await runCli(WHITELIST["approvals-get"].args, false, false);
   if (!result.ok) return result;
   return { ok: true, raw: result.stdout };
+}
+
+/** Sanitize user message for openclaw agent: trim, limit length, remove null bytes */
+function sanitizeMessage(msg: string): string {
+  return String(msg ?? "")
+    .replace(/\0/g, "")
+    .trim()
+    .slice(0, 8000);
+}
+
+/** When using shell (Windows .cmd), quote the message so it isn't split on spaces */
+function messageArgForShell(sanitized: string): string {
+  return `"${sanitized.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Run agent with a message (openclaw agent --message "...").
+ * Requires Gateway. Use --agent <id> if agentId provided.
+ */
+export async function runAgent(
+  message: string,
+  opts?: { agentId?: string; json?: boolean }
+): Promise<{ ok: true; stdout: string; raw: string } | { ok: false; error: ApiError }> {
+  const sanitized = sanitizeMessage(message);
+  if (!sanitized) {
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, "Message is empty") };
+  }
+
+  const bin = getCliPath();
+  const messageArg = needsShell(bin) ? messageArgForShell(sanitized) : sanitized;
+  const args = ["agent", "--message", messageArg];
+  // Gateway requires one of --to, --session-id, or --agent; default to main
+  const agentId = opts?.agentId?.trim() || process.env.OPENCLAW_AGENT_ID || "main";
+  args.push("--agent", agentId);
+  if (opts?.json) {
+    args.push("--json");
+  }
+
+  const result = await runCli(args, opts?.json ?? false, false, getAgentTimeout());
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    stdout: result.stdout,
+    raw: result.stdout,
+  };
 }

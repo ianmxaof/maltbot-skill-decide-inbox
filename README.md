@@ -13,6 +13,7 @@ All sections live under one dashboard with tab navigation:
 | Tab | Purpose |
 |-----|--------|
 | **Context Hub** | Project-centric home. “Here’s my problem space.” Projects = problem space + linked repos, feeds, agents + decision log. |
+| **Direct to Agent** | Send natural-language instructions to OpenClaw. Agent interprets, reasons, and executes (e.g. integrate high-signal feeds, deploy). |
 | **Signal Feeds** | Feeds as first-class: signal strength, last delta, why it matters to this project, confidence. |
 | **Decide Inbox** | Single human bottleneck. What changed · why it matters · options (A/B/C) · risk · recommendation. Ignore / Approve / Deeper analysis. |
 | **Security** | Public exposure, port risk, API key inventory (last used), plugin trust. “What an attacker could see” (read-only, sanitized). |
@@ -79,6 +80,56 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Use the tabs to switch between Context Hub, Signal Feeds, Decide Inbox, Security, Agent Timeline, CI/CR Radar, and Skills. Maltbot can sit in or entirely as the backend for each section.
 
+#### Moltbook API key (optional)
+
+To see live Moltbook data (Moltbook Hub) and run the `moltbook:whoami` script:
+
+1. **PowerShell (current session):**
+   ```powershell
+   # Replace <MOLTBOOK_API_KEY> with your moltbook_sk_... value
+   $env:MOLTBOOK_API_KEY = "<MOLTBOOK_API_KEY>"
+   ```
+
+2. **PowerShell (persistent, user-level):**
+   ```powershell
+   # Replace <MOLTBOOK_API_KEY> with your moltbook_sk_... value
+   [Environment]::SetEnvironmentVariable("MOLTBOOK_API_KEY", "<MOLTBOOK_API_KEY>", "User")
+   ```
+   Then restart your terminal (and dev server if running).
+
+3. **For the Next.js app:** Create `.env.local` in the project root and add:
+   ```
+   MOLTBOOK_API_KEY=<MOLTBOOK_API_KEY>
+   ```
+   (`.env.local` is in `.gitignore` and is not committed.)
+
+4. **Verify the key** with the Moltbook client script:
+   ```bash
+   npm run moltbook:whoami
+   ```
+   This fetches and prints your agent info from Moltbook. If the key is wrong or missing, you'll get a clear error.
+
+### `TypeError: Cannot read properties of undefined (reading 'call')` or `Cannot find module './682.js'`
+
+These errors come from a corrupted or mismatched `.next` build cache. Webpack expects chunks in one location but they're in another (e.g. `./chunks/682.js` vs `./682.js`).
+
+**Fix:**
+
+1. **Stop the dev server** (Ctrl+C).
+2. **Delete the `.next` folder** completely.
+3. **Restart dev:** Run `npm run dev` again.
+
+Or use the convenience script:
+
+```bash
+npm run dev:clean
+```
+
+This deletes `.next` and starts dev in one step. Do not run `npm run build` before `npm run dev` — let dev create its own output.
+
+4. **Hard refresh** in an external browser (Ctrl+Shift+R / Cmd+Shift+R).
+5. **Production:** If dev is unreliable, use `npm run build` then `npm run start` — production mode is more stable.
+
 ### External browser (Cursor vs Chrome/Edge/etc.)
 
 If the app works in Cursor’s built-in browser but shows errors or unstyled content in an external browser:
@@ -100,6 +151,7 @@ The dashboard talks to OpenClaw only via Next.js API routes. The browser never c
 
 | Variable | Purpose |
 |----------|--------|
+| `MOLTBOOK_API_KEY` | PowerCoreAi Moltbook API key (moltbook_sk_...). For Moltbook Hub and `npm run moltbook:whoami`. |
 | `OPENCLAW_CLI_PATH` | Optional. CLI executable (default: `openclaw` on PATH). |
 | `OPENCLAW_GATEWAY_URL` | Optional. e.g. `http://127.0.0.1:18789`. When set with token, adapter may use HTTP for health/tools. |
 | `OPENCLAW_GATEWAY_TOKEN` | Required when using HTTP. |

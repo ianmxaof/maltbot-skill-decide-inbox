@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { mockProjects } from "@/data/mock-projects";
 import { IdleBanner } from "@/components/IdleBanner";
+import { AgentActivityBlock } from "@/components/AgentActivityBlock";
 
 export default function ContextHubPage() {
   return (
@@ -13,6 +14,8 @@ export default function ContextHubPage() {
           Start with your problem space. Each project = problem space + linked repos, feeds, agents + decision log.
         </p>
       </section>
+
+      <AgentActivityBlock />
 
       <ul className="space-y-4">
         {mockProjects.map((project) => (

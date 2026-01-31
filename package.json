@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
+    "dev:clean": "node scripts/clean-next.mjs && next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "moltbook:whoami": "node scripts/moltbook_client.mjs"
   },
   "dependencies": {
     "date-fns": "^3.6.0",
@@ -15,6 +17,7 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
+    "lucide-react": "^0.460.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
