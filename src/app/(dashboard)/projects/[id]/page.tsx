@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { mockProjects } from "@/data/mock-projects";
+import { getProject } from "@/lib/project-store";
 import { IdleBanner } from "@/components/IdleBanner";
 import { SignalDriftBanner } from "@/components/SignalDriftBanner";
 import { ProblemSpace } from "@/components/ProblemSpace";
@@ -12,7 +12,7 @@ type Props = { params: Promise<{ id: string }> };
 
 export default async function ProjectPage({ params }: Props) {
   const { id } = await params;
-  const project = mockProjects.find((p) => p.id === id);
+  const project = await getProject(id);
   if (!project) notFound();
 
   return (

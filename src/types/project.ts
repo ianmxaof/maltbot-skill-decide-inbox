@@ -15,7 +15,7 @@ export type LinkedFeed = {
   id: string;
   name: string;
   urlOrSource: string;
-  type: "rss" | "api" | "docs" | "custom";
+  type: "rss" | "api" | "docs" | "moltbook" | "custom";
   lastFetchedAt?: string;
 };
 
@@ -38,8 +38,10 @@ export type DecisionLogEntry = {
 export type Project = {
   id: string;
   name: string;
-  /** Problem space: markdown + diagram placeholders (e.g. mermaid) */
+  /** Problem space: markdown + diagram placeholders (e.g. mermaid) — ruleset/config the agent follows */
   problemSpaceMarkdown: string;
+  /** OpenClaw agent id (e.g. "main") or roster agent id that uses this context */
+  primaryAgentId?: string;
   linkedRepos: LinkedRepo[];
   linkedFeeds: LinkedFeed[];
   linkedAgents: LinkedAgent[];
