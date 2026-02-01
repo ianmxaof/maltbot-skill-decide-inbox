@@ -13,13 +13,15 @@ All sections live under one dashboard with tab navigation:
 | Tab | Purpose |
 |-----|--------|
 | **Context Hub** | Project-centric home. “Here’s my problem space.” Projects = problem space + linked repos, feeds, agents + decision log. |
-| **Direct to Agent** | Send natural-language instructions to OpenClaw. Agent interprets, reasons, and executes (e.g. integrate high-signal feeds, deploy). |
+| **Direct to Agent** | Send natural-language instructions to OpenClaw. Agent interprets, reasons, and executes (e.g. integrate high-signal feeds, deploy). Uses `/api/openclaw/agent/run`. |
 | **Signal Feeds** | Feeds as first-class: signal strength, last delta, why it matters to this project, confidence. |
 | **Decide Inbox** | Single human bottleneck. What changed · why it matters · options (A/B/C) · risk · recommendation. Ignore / Approve / Deeper analysis. |
 | **Security** | Public exposure, port risk, API key inventory (last used), plugin trust. “What an attacker could see” (read-only, sanitized). |
 | **Agent Timeline** | Cognition timeline: observed → hypothesis → cross-check → proposal → awaiting decision. |
 | **CI/CR Radar** | CI failures, dependency churn, tooling changes, automation opportunities (e.g. “delete 412 lines”). |
 | **Skills** | Marketplace with reputation: author, dependency risk, usage, time-to-rollback, dry-run. |
+| **Moltbook Hub** | PowerCoreAi Moltbook integration: agent roster, signals, pending proposals, activity feed. Propose / Execute / Ignore via `/api/moltbook/*`. |
+| **Settings** | API keys (MOLTBOOK_API_KEY, etc.), model preferences, and OpenClaw config. Persisted via UI; see ApiKeysPanel and ModelPanel. |
 
 ---
 
@@ -36,33 +38,60 @@ Everything in the dashboard aligns with that.
 
 ```
 context-hub/
+├── docs/                           # Design and troubleshooting
+│   ├── CLAUDE-CODE-FIX-OAUTH-PROMPT.md
+│   ├── GATEWAY-START-ISSUE-REPORT.md
+│   └── OPENCLAW-FULL-SCOPE-SETTINGS.md
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx              # Root layout
 │   │   └── (dashboard)/
 │   │       ├── layout.tsx           # Dashboard shell + tab nav
 │   │       ├── page.tsx             # Context Hub (project list)
-│   │       ├── projects/[id]/page.tsx
+│   │       ├── command/page.tsx     # Direct to Agent (natural-language → OpenClaw)
+│   │       ├── projects/[id]/page.tsx, projects/new/page.tsx
 │   │       ├── feeds/page.tsx       # Signal Feeds
 │   │       ├── decide/page.tsx      # Decide Inbox
 │   │       ├── security/page.tsx    # Security Posture
 │   │       ├── timeline/page.tsx    # Agent Timeline
 │   │       ├── radar/page.tsx       # CI/CR Radar
-│   │       └── skills/page.tsx      # Skill Marketplace
-│   │   └── api/openclaw/           # OpenClaw API (status, health, sessions, skills, approvals)
+│   │       ├── skills/page.tsx      # Skill Marketplace
+│   │       ├── moltbook/page.tsx    # Moltbook Hub
+│   │       └── settings/page.tsx    # API keys, model config
+│   │   └── api/
+│   │       ├── openclaw/            # OpenClaw: status, health, sessions, skills, approvals
+│   │       │   ├── agent/run/       # Natural-language agent run (Direct to Agent)
+│   │       │   ├── gateway/         # Gateway control: start, status, restart
+│   │       │   ├── config/, env/    # Config and env inspection
+│   │       │   └── ...
+│   │       ├── moltbook/            # Moltbook: activity, feed, pending, profile, register
+│   │       │   └── actions/         # propose, execute, ignore
+│   │       └── projects/            # Projects CRUD
 │   ├── components/
-│   │   ├── DashboardTabs.tsx       # Tab navigation
+│   │   ├── DashboardTabs.tsx        # Tab navigation
 │   │   ├── OpenClawStatusBlock.tsx # OpenClaw status (Security tab)
+│   │   ├── AgentActivityBlock.tsx  # Agent activity (Timeline / Moltbook)
+│   │   ├── moltbook/               # MoltbookHub, panels, SignalCard, AgentStatusBar, etc.
+│   │   ├── settings/               # ApiKeysPanel, ModelPanel
 │   │   ├── IdleBanner, SignalDriftBanner, WhatChangedBanner
-│   │   ├── ProblemSpace, LinkedResources, DecisionLog
+│   │   └── ProblemSpace, LinkedResources, DecisionLog
 │   ├── data/
 │   │   ├── mock-projects.ts
-│   │   └── mock-dashboard.ts       # Feeds, Decide, Security, Timeline, Radar, Skills
+│   │   ├── mock-dashboard.ts       # Feeds, Decide, Security, Timeline, Radar, Skills
+│   │   └── mock-moltbook.ts
+│   ├── hooks/
+│   │   ├── useAgentActivity.ts
+│   │   ├── useDecideInboxData.ts
+│   │   ├── useMoltbookData.ts
+│   │   └── useProjects.ts
 │   ├── lib/
 │   │   ├── idle.ts
-│   │   └── openclaw.ts            # CLI adapter (whitelist, timeouts, safe errors)
+│   │   ├── openclaw.ts             # CLI adapter (whitelist, timeouts, safe errors)
+│   │   ├── openclaw-config.ts      # Gateway URL, token, CLI path
+│   │   ├── moltbook.ts             # Moltbook API client
+│   │   └── moltbook-pending.ts
 │   └── types/
-│       ├── api.ts                 # ApiError, apiError()
+│       ├── api.ts                  # ApiError, apiError()
 │       ├── project.ts
 │       └── dashboard.ts            # SignalFeedCard, DecideInboxItem, SecurityPosture, etc.
 ├── package.json
@@ -78,7 +107,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Use the tabs to switch between Context Hub, Signal Feeds, Decide Inbox, Security, Agent Timeline, CI/CR Radar, and Skills. Maltbot can sit in or entirely as the backend for each section.
+Open [http://localhost:3000](http://localhost:3000). Use the tabs to switch between Context Hub, Direct to Agent, Signal Feeds, Decide Inbox, Security, Agent Timeline, CI/CR Radar, Skills, Moltbook Hub, and Settings. Maltbot/OpenClaw and Moltbook can sit in or entirely as the backend for each section.
 
 #### Moltbook API key (optional)
 
@@ -157,10 +186,48 @@ The dashboard talks to OpenClaw only via Next.js API routes. The browser never c
 | `OPENCLAW_GATEWAY_TOKEN` | Required when using HTTP. |
 | `OPENCLAW_CLI_TIMEOUT_MS` | Optional. Default 15000 ms for most ops; status uses 5 s so the UI does not hang when the Gateway is down. |
 
+### Gateway control (start / status / restart)
+
+The UI can start, query, and restart the OpenClaw Gateway via Next.js API routes (browser never talks to the Gateway directly):
+
+| Route | Method | Purpose |
+|-------|--------|--------|
+| `/api/openclaw/gateway/status` | GET | Gateway reachability and basic info. |
+| `/api/openclaw/gateway/start` | POST | Start the Gateway process (uses `OPENCLAW_GATEWAY_URL`, token, CLI path from config). |
+| `/api/openclaw/gateway/restart` | POST | Restart the Gateway (stop then start). |
+
+See `docs/GATEWAY-START-ISSUE-REPORT.md` and `docs/OPENCLAW-FULL-SCOPE-SETTINGS.md` for troubleshooting and full env/config scope.
+
+### Moltbook API (PowerCoreAi)
+
+Moltbook Hub and Decide-style flows use these API routes (all go through the Next.js app; keys stay server-side):
+
+| Route | Purpose |
+|-------|--------|
+| `/api/moltbook/activity` | Agent activity feed. |
+| `/api/moltbook/feed` | Signal feed. |
+| `/api/moltbook/pending` | Pending proposals. |
+| `/api/moltbook/profile` | Agent profile (e.g. `npm run moltbook:whoami`). |
+| `/api/moltbook/register` | Register agent. |
+| `/api/moltbook/actions/propose` | Propose an action. |
+| `/api/moltbook/actions/execute` | Execute an approved action. |
+| `/api/moltbook/actions/ignore` | Ignore a proposal. |
+
+Requires `MOLTBOOK_API_KEY` (see Moltbook API key section above). See also `MOLTBOOK_INTEGRATION.md` and `MOLTBOOK_POWERCOREAi_SETUP.md`.
+
 ### What is live vs mocked
 
-- **Status / Health / Sessions / Skills / Approvals:** Served by the OpenClaw adapter (CLI or HTTP when configured). Skills are mapped to `SkillCard` with explicit defaults when OpenClaw does not provide fields (see code/README).
-- **Context Hub (projects) and Decide Inbox:** Remain fully mocked. OpenClaw has no "projects" API; sessions do not provide problemSpaceMarkdown, linkedRepos, decisionLog, etc. Projects can be mapped from sessions or a future OpenClaw skill later (TODOs in code).
+- **OpenClaw:** Status, health, sessions, skills, approvals, agent run, and gateway (start/status/restart) are served by the OpenClaw adapter (CLI or HTTP when configured). Skills are mapped to `SkillCard` with explicit defaults when OpenClaw does not provide fields.
+- **Moltbook:** Activity, feed, pending, profile, register, and actions (propose/execute/ignore) call the Moltbook API when `MOLTBOOK_API_KEY` is set; otherwise mocked.
+- **Context Hub (projects) and Decide Inbox:** Projects and Decide items remain mocked in the UI. OpenClaw has no "projects" API; sessions do not provide problemSpaceMarkdown, linkedRepos, decisionLog, etc. Projects can be mapped from sessions or a future OpenClaw skill later (TODOs in code).
+
+### Documentation (docs/)
+
+| File | Purpose |
+|------|--------|
+| `docs/CLAUDE-CODE-FIX-OAUTH-PROMPT.md` | OAuth/code-fix guidance for Claude/Cursor. |
+| `docs/GATEWAY-START-ISSUE-REPORT.md` | Gateway start failures and troubleshooting. |
+| `docs/OPENCLAW-FULL-SCOPE-SETTINGS.md` | Full OpenClaw env/config scope and Settings UI. |
 
 ### Optional follow-ups
 
