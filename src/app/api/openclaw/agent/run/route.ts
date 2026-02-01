@@ -27,8 +27,11 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       const err = result.error.error;
+      const fullError = err.message ?? "Unknown error";
+      // Log full error server-side for debugging
+      console.error("[openclaw/agent/run] Agent failed:", fullError);
       return NextResponse.json(
-        { success: false, error: err.message, code: err.code },
+        { success: false, error: fullError, code: err.code },
         { status: 502 }
       );
     }

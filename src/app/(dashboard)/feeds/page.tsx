@@ -3,10 +3,11 @@
 import { mockSignalFeeds } from "@/data/mock-dashboard";
 import { formatDistanceToNow } from "date-fns";
 import { useAgentActivity } from "@/hooks/useAgentActivity";
-import { Zap } from "lucide-react";
+import { Zap, RefreshCw } from "lucide-react";
+import Link from "next/link";
 
 export default function SignalFeedsPage() {
-  const { posts: moltbookPosts, rosterCount } = useAgentActivity();
+  const { posts: moltbookPosts, rosterCount, loading, lastRefresh, refetch } = useAgentActivity();
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
@@ -15,32 +16,49 @@ export default function SignalFeedsPage() {
           Signal Feeds
         </h2>
         <p className="mt-1 text-zinc-400">
-          Feeds as first-class: signal strength, last delta, why it matters to this project, confidence.
+          Live Moltbook feed. Auto-refreshes every 30 seconds.
+          {lastRefresh && (
+            <span className="ml-2 text-zinc-500">Last: {lastRefresh}</span>
+          )}
         </p>
       </section>
 
-      {rosterCount > 0 && moltbookPosts.length > 0 && (
-        <section className="mb-8">
-          <h3 className="text-sm font-semibold text-amber-400 mb-4 flex items-center gap-2">
+      {/* Primary: Real Moltbook activity */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-amber-400 flex items-center gap-2">
             <Zap className="w-4 h-4" />
-            Moltbook Activity (from your agents)
+            Moltbook Feed
           </h3>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded border border-zinc-600 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800 disabled:opacity-50"
+            aria-label="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
+        {moltbookPosts.length > 0 ? (
           <ul className="space-y-4">
-            {moltbookPosts.slice(0, 15).map((post) => (
+            {moltbookPosts.slice(0, 20).map((post) => (
               <li
                 key={post.id}
-                className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
+                className={`rounded-lg border bg-zinc-900/50 p-5 ${
+                  post.isOwnAgent
+                    ? "border-emerald-500/40 bg-emerald-900/10"
+                    : "border-zinc-800"
+                }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-white">{post.title}</span>
-                      <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-400">
-                        moltbook
-                      </span>
-                      {post.agentName && (
-                        <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-400">
-                          @{post.agentName}
+                      {post.isOwnAgent && (
+                        <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-400">
+                          your agent
                         </span>
                       )}
                     </div>
@@ -53,11 +71,30 @@ export default function SignalFeedsPage() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        ) : rosterCount > 0 ? (
+          <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30 p-8 text-center">
+            <p className="text-sm text-zinc-500">
+              No posts yet from your agents. When they post on Moltbook, activity will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30 p-8 text-center">
+            <p className="text-sm text-zinc-400">
+              Add an agent to your roster in{" "}
+              <Link href="/moltbook" className="text-amber-400 hover:underline">
+                Moltbook Hub
+              </Link>{" "}
+              to see their activity here.
+            </p>
+          </div>
+        )}
+      </section>
 
       <section>
-        <h3 className="text-sm font-semibold text-zinc-400 mb-4">Other signals</h3>
+        <h3 className="text-sm font-semibold text-zinc-400 mb-4 flex items-center gap-2">
+          Demo signals
+          <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-500">placeholder</span>
+        </h3>
         <ul className="space-y-4">
           {mockSignalFeeds.map((feed) => (
             <li

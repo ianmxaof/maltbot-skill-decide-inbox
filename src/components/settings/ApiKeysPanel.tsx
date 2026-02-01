@@ -12,6 +12,7 @@ export function ApiKeysPanel() {
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     fetch("/api/openclaw/env")
@@ -48,6 +49,9 @@ export function ApiKeysPanel() {
         setKeys(updated);
         setEditing(null);
         setValue("");
+        setJustSaved(true);
+        window.dispatchEvent(new CustomEvent("settings:keysUpdated"));
+        setTimeout(() => setJustSaved(false), 8000);
       } else {
         setError(data.error ?? "Failed to save");
       }
@@ -136,6 +140,11 @@ export function ApiKeysPanel() {
           </li>
         ))}
       </ul>
+      {justSaved && (
+        <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-sm text-amber-300">
+          Key saved. <strong>Click Restart Gateway</strong> below (in Default Model) to apply — the Gateway loads keys at startup.
+        </div>
+      )}
       {error && (
         <p className="text-sm text-rose-400">{error}</p>
       )}

@@ -38,6 +38,7 @@ export async function readEnvMasked(): Promise<EnvKey[]> {
     "BRAVE_API_KEY",
     "TELEGRAM_BOT_TOKEN",
     "GROQ_API_KEY",
+    "ZAI_API_KEY",
   ];
   const result: EnvKey[] = [];
   try {
@@ -66,6 +67,23 @@ export async function readEnvMasked(): Promise<EnvKey[]> {
     if ((e as NodeJS.ErrnoException).code === "ENOENT")
       return known.map((name) => ({ name, masked: "", hasValue: false }));
     throw e;
+  }
+}
+
+/** Get the raw value of an env key (server-side only) */
+export async function getEnvKeyRaw(key: string): Promise<string | null> {
+  try {
+    const raw = await fs.readFile(ENV_PATH, "utf8");
+    const lines = raw.split(/\r?\n/);
+    for (const line of lines) {
+      const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
+      if (m && m[1] === key) {
+        return (m[2] ?? "").replace(/^["']|["']$/g, "").trim() || null;
+      }
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 

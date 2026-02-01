@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ApiKeysPanel, ModelPanel } from "@/components/settings";
 
 export default function SettingsPage() {
@@ -28,7 +29,13 @@ export default function SettingsPage() {
 
       <p className="mt-8 text-xs text-zinc-500">
         Config is stored in <code className="bg-zinc-800 px-1 rounded">~/.openclaw/</code>.
-        Restart the Gateway for changes to take effect.
+        Start or restart the Gateway for changes to take effect. See{" "}
+        <code className="bg-zinc-800 px-1 rounded">docs/OPENCLAW-FULL-SCOPE-SETTINGS.md</code> for
+        the roadmap to full OpenClaw CLI parity.
+      </p>
+
+      <p className="mt-4 text-xs text-zinc-500">
+        Auth or token errors in <Link href="/command" className="text-amber-400 hover:text-amber-300 underline">Direct to Agent</Link>? Save your API key above, then click <strong>Start Gateway</strong>. No terminal needed.
       </p>
     </main>
   );

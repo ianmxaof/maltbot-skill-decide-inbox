@@ -66,7 +66,7 @@ function DecideInboxContent() {
   const filter: Filter =
     filterParam && ["all", "project", "social", "ci_cr"].includes(filterParam) ? filterParam : "all";
 
-  const { items, refetch } = useDecideInboxData();
+  const { items, loading, refetch } = useDecideInboxData();
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [executing, setExecuting] = useState<string | null>(null);
 
@@ -179,10 +179,15 @@ function DecideInboxContent() {
         })}
       </ul>
 
-      {filteredItems.length === 0 && (
+      {loading && filteredItems.length === 0 && (
+        <p className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30 p-8 text-center text-sm text-zinc-500">
+          Loading…
+        </p>
+      )}
+      {!loading && filteredItems.length === 0 && (
         <p className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30 p-8 text-center text-sm text-zinc-500">
           {filter === "all"
-            ? "Inbox clear. New items appear when the system needs your decision."
+            ? "Inbox clear. New items appear when your agent proposes a Moltbook action (post, comment, follow) via the Direct to Agent interface."
             : `No ${filter} items pending. Try another filter.`}
         </p>
       )}

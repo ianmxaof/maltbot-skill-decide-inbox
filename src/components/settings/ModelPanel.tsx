@@ -1,7 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Cpu, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Cpu, Loader2, Play, RotateCcw } from "lucide-react";
+
+/** Models shown when each API key is configured — no refresh needed after save */
+const API_KEY_MODELS: Record<string, string[]> = {
+  ANTHROPIC_API_KEY: [
+    "anthropic/claude-opus-4-5",
+    "anthropic/claude-sonnet-4",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3-haiku",
+  ],
+  OPENAI_API_KEY: [
+    "openai/gpt-5.2",
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4-turbo",
+  ],
+  OPENROUTER_API_KEY: [
+    "openrouter/z-ai/glm-4.7",
+    "openrouter/anthropic/claude-sonnet-4",
+    "openrouter/anthropic/claude-3.5-sonnet",
+    "openrouter/anthropic/claude-3-haiku",
+    "openrouter/openai/gpt-4o",
+    "openrouter/openai/gpt-4o-mini",
+    "openrouter/google/gemini-2.0-flash-001",
+    "openrouter/google/gemini-flash-1.5",
+    "openrouter/meta-llama/llama-3.3-70b-instruct",
+  ],
+  GROQ_API_KEY: [
+    "groq/llama-3.3-70b-versatile",
+    "groq/llama-3.1-8b-instant",
+  ],
+  ZAI_API_KEY: [
+    "zai/glm-4.7",
+    "zai/glm-4.7-flash",
+  ],
+};
 
 type Config = {
   agents?: {
@@ -12,13 +47,24 @@ type Config = {
   };
 };
 
+type EnvKey = { name: string; masked: string; hasValue: boolean };
+
 export function ModelPanel() {
   const [config, setConfig] = useState<Config | null>(null);
+  const [envKeys, setEnvKeys] = useState<EnvKey[]>([]);
   const [hash, setHash] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState("");
+
+  const fetchEnv = useCallback(async () => {
+    const r = await fetch("/api/openclaw/env");
+    const d = await r.json();
+    if (d.success && Array.isArray(d.keys)) setEnvKeys(d.keys);
+  }, []);
 
   useEffect(() => {
     fetch("/api/openclaw/config")
@@ -37,13 +83,88 @@ export function ModelPanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  const models = config?.agents?.defaults?.models
+  useEffect(() => {
+    fetchEnv();
+  }, [fetchEnv]);
+
+  useEffect(() => {
+    const onKeysUpdated = () => fetchEnv();
+    window.addEventListener("settings:keysUpdated", onKeysUpdated);
+    return () => window.removeEventListener("settings:keysUpdated", onKeysUpdated);
+  }, [fetchEnv]);
+
+  const configModels = config?.agents?.defaults?.models
     ? Object.keys(config.agents.defaults.models)
     : [];
+
   const primary =
     typeof config?.agents?.defaults?.model === "string"
       ? config.agents.defaults.model
       : config?.agents?.defaults?.model?.primary ?? "";
+
+  useEffect(() => {
+    if (primary) setSelected(primary);
+  }, [primary]);
+
+  const envConfiguredModels = envKeys
+    .filter((k) => k.hasValue && API_KEY_MODELS[k.name])
+    .flatMap((k) => API_KEY_MODELS[k.name]);
+
+  const allOptions = Array.from(
+    new Set([...configModels, ...envConfiguredModels, primary || ""].filter(Boolean))
+  ).sort((a, b) => {
+    const aIsOpenRouter = a.startsWith("openrouter/");
+    const bIsOpenRouter = b.startsWith("openrouter/");
+    if (aIsOpenRouter && !bIsOpenRouter) return 1;
+    if (!aIsOpenRouter && bIsOpenRouter) return -1;
+    return a.localeCompare(b);
+  });
+
+  const handleStartGateway = async () => {
+    setStarting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/openclaw/gateway/start", { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error ?? "Failed to start Gateway");
+        return;
+      }
+      if (data.alreadyRunning) {
+        setError(null);
+        return;
+      }
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to start Gateway");
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleRestartGateway = async () => {
+    setRestarting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/openclaw/gateway/restart", { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        const msg = data.error ?? "Failed";
+        if (msg.includes("timed out")) {
+          setError(
+            "Restart timed out. If you run the Gateway manually in a terminal (e.g. openclaw gateway --port 18789), there is no service to restart — stop it there (Ctrl+C) and start it again. If the Gateway is installed as a service, try: openclaw gateway restart"
+          );
+        } else {
+          setError(msg);
+        }
+        return;
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to restart Gateway");
+    } finally {
+      setRestarting(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!selected || saving) return;
@@ -95,12 +216,24 @@ export function ModelPanel() {
     );
   }
 
-  const options = models.length > 0 ? models : primary ? [primary] : [];
+  const optgroups: { label: string; models: string[] }[] = [];
+  const anthropicModels = allOptions.filter((m) => m.startsWith("anthropic/"));
+  const openaiModels = allOptions.filter((m) => m.startsWith("openai/") && !m.startsWith("openrouter/"));
+  const openRouterModels = allOptions.filter((m) => m.startsWith("openrouter/"));
+  const groqModels = allOptions.filter((m) => m.startsWith("groq/"));
+  const otherModels = allOptions.filter(
+    (m) => !m.startsWith("anthropic/") && !m.startsWith("openai/") && !m.startsWith("openrouter/") && !m.startsWith("groq/")
+  );
+  if (anthropicModels.length) optgroups.push({ label: "Anthropic (ANTHROPIC_API_KEY)", models: anthropicModels });
+  if (openaiModels.length) optgroups.push({ label: "OpenAI (OPENAI_API_KEY)", models: openaiModels });
+  if (openRouterModels.length) optgroups.push({ label: "OpenRouter (OPENROUTER_API_KEY)", models: openRouterModels });
+  if (groqModels.length) optgroups.push({ label: "Groq (GROQ_API_KEY)", models: groqModels });
+  if (otherModels.length) optgroups.push({ label: "Config / Other", models: otherModels });
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-zinc-500">
-        Default model used by the agent. Changes require Gateway restart.
+        Models appear when you save their API key above. Save key → select model → Save → Restart Gateway if needed.
       </p>
       <div className="flex items-center gap-3">
         <Cpu className="w-4 h-4 text-zinc-500" />
@@ -110,14 +243,15 @@ export function ModelPanel() {
           className="px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50"
         >
           <option value="">— Select model —</option>
-          {options.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
+          {optgroups.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </optgroup>
           ))}
-          {primary && !options.includes(primary) && (
-            <option value={primary}>{primary}</option>
-          )}
         </select>
         <button
           type="button"
@@ -129,6 +263,38 @@ export function ModelPanel() {
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             "Save"
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={handleStartGateway}
+          disabled={starting || restarting}
+          title="Start OpenClaw Gateway in the background (port from OPENCLAW_GATEWAY_PORT or 18789)"
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-lg text-sm font-medium hover:bg-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {starting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <>
+              <Play className="w-4 h-4" />
+              Start Gateway
+            </>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={handleRestartGateway}
+          disabled={starting || restarting}
+          title="Restart OpenClaw Gateway (works when Gateway runs as a service)"
+          className="flex items-center gap-2 px-4 py-2 border border-zinc-600 text-zinc-400 rounded-lg text-sm font-medium hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {restarting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <>
+              <RotateCcw className="w-4 h-4" />
+              Restart Gateway
+            </>
           )}
         </button>
       </div>

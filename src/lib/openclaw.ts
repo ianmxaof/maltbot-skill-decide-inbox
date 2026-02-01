@@ -4,8 +4,11 @@
  * Never expose raw stdout/stderr to client.
  */
 
-import { execFile } from "child_process";
+import { execFile, spawn, exec } from "child_process";
 import { promisify } from "util";
+import { writeFileSync, unlinkSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import type { ApiError } from "@/types/api";
 import { OPENCLAW_ERROR_CODES, apiError } from "@/types/api";
 import type { SkillCard } from "@/types/dashboard";
@@ -76,7 +79,7 @@ async function runCli(
       return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.NOT_FOUND, "OpenClaw CLI not found (not installed or not on PATH)") };
     }
     const message = e.message ?? String(e);
-    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, message.length > 200 ? message.slice(0, 200) + "…" : message) };
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, message.length > 2000 ? message.slice(0, 2000) + "…" : message) };
   }
 }
 
@@ -84,6 +87,7 @@ async function runCli(
 const WHITELIST: Record<string, { args: string[]; shortTimeout: boolean; json: boolean }> = {
   status: { args: ["status"], shortTimeout: true, json: false },
   "gateway-status": { args: ["gateway", "status", "--json"], shortTimeout: true, json: true },
+  "gateway-restart": { args: ["gateway", "restart"], shortTimeout: false, json: false },
   health: { args: ["health", "--json"], shortTimeout: false, json: true },
   sessions: { args: ["sessions", "--json"], shortTimeout: false, json: true },
   skills: { args: ["skills", "list"], shortTimeout: false, json: false },
@@ -149,6 +153,169 @@ export async function getGatewayStatus(): Promise<{ ok: true; data: unknown } | 
   } catch {
     return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.PARSE_ERROR, "Invalid JSON from openclaw gateway status") };
   }
+}
+
+const GATEWAY_RESTART_TIMEOUT_MS = 30000;
+const DEFAULT_GATEWAY_PORT = "18789";
+
+function getGatewayPort(): string {
+  return process.env.OPENCLAW_GATEWAY_PORT ?? DEFAULT_GATEWAY_PORT;
+}
+
+/**
+ * Kill any process listening on the gateway port.
+ * Prevents accumulation of zombie Node/OpenClaw processes when starting a new gateway.
+ */
+export async function killProcessOnGatewayPort(): Promise<void> {
+  const port = getGatewayPort();
+  const isWin = process.platform === "win32";
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(safety);
+      resolve();
+    };
+    const safety = setTimeout(done, 6000);
+
+    if (isWin) {
+      // PowerShell: find process on port, kill it (use temp file to avoid quoting issues)
+      const ps = `Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }`;
+      const psFile = join(tmpdir(), `openclaw-kill-port-${Date.now()}.ps1`);
+      try {
+        writeFileSync(psFile, ps, "utf8");
+        exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psFile}"`, { timeout: 5000 }, () => {
+          try {
+            unlinkSync(psFile);
+          } catch {
+            /* ignore */
+          }
+          done();
+        });
+      } catch (e) {
+        try {
+          unlinkSync(psFile);
+        } catch {
+          /* ignore */
+        }
+        done();
+      }
+    } else {
+      // lsof -i :PORT -t returns PIDs; kill -9 each
+      exec(`lsof -i :${port} -t 2>/dev/null`, { timeout: 3000 }, (err, stdout) => {
+        const pids = (stdout ?? "")
+          .trim()
+          .split(/\r?\n/)
+          .filter((s) => /^\d+$/.test(s));
+        if (pids.length === 0) {
+          done();
+          return;
+        }
+        exec(`kill -9 ${pids.join(" ")} 2>/dev/null`, { timeout: 3000 }, done);
+      });
+    }
+  });
+}
+
+/**
+ * Start the OpenClaw Gateway as a detached background process (runs until stopped).
+ * On Windows, uses VBScript to launch truly hidden (no console window).
+ * On Unix, uses detached spawn.
+ */
+export function startGateway(): { ok: true } | { ok: false; error: ApiError } {
+  const bin = getCliPath();
+  const port = getGatewayPort();
+  const gatewayArgs = ["gateway", "--port", port];
+  const isWin = process.platform === "win32";
+
+  try {
+    if (isWin) {
+      // Use VBScript to launch truly hidden on Windows.
+      // WScript.Shell.Run with 0 = hidden window, False = don't wait.
+      // This works even for .cmd/.bat wrappers that normally create console windows.
+      const vbsPath = join(tmpdir(), `openclaw-gateway-${Date.now()}.vbs`);
+
+      // Build the command - escape double quotes for VBScript
+      const cmdEscaped = `"${bin}" gateway --port ${port}`.replace(/"/g, '""');
+
+      // VBScript content: run command hidden, don't wait
+      const vbsContent = `
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.CurrentDirectory = "${process.cwd().replace(/\\/g, "\\\\").replace(/"/g, '""')}"
+WshShell.Run "${cmdEscaped}", 0, False
+`;
+
+      try {
+        // Write temporary VBScript
+        writeFileSync(vbsPath, vbsContent, "utf8");
+
+        // Run VBScript with wscript (GUI host, no console) - fire and forget
+        const child = spawn("wscript", [vbsPath], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        child.unref();
+
+        // Clean up VBS file after a delay (give wscript time to read it)
+        setTimeout(() => {
+          try {
+            unlinkSync(vbsPath);
+          } catch {
+            // Ignore cleanup errors
+          }
+        }, 5000);
+      } catch (vbsErr) {
+        // Fallback: try PowerShell approach if VBScript fails
+        const psPath = (p: string) => p.replace(/'/g, "''");
+        const psCmd = `Start-Process -FilePath '${psPath(bin)}' -ArgumentList 'gateway','--port','${port}' -WindowStyle Hidden -WorkingDirectory '${psPath(process.cwd())}'`;
+        const child = spawn("powershell", ["-NoProfile", "-WindowStyle", "Hidden", "-Command", psCmd], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+          env: process.env,
+          cwd: process.cwd(),
+        });
+        child.unref();
+      }
+    } else {
+      // Unix: simple detached spawn
+      const useShell = needsShell(bin);
+      const child = spawn(bin, gatewayArgs, {
+        detached: true,
+        stdio: "ignore",
+        shell: useShell,
+        env: process.env,
+        cwd: process.cwd(),
+      });
+      child.unref();
+    }
+    return { ok: true };
+  } catch (err: unknown) {
+    const e = err as { message?: string };
+    const message = e?.message ?? String(err);
+    return {
+      ok: false,
+      error: apiError(
+        OPENCLAW_ERROR_CODES.CLI_ERROR,
+        message.length > 2000 ? message.slice(0, 2000) + "…" : message
+      ),
+    };
+  }
+}
+
+/** Restart the OpenClaw Gateway service (works when gateway is installed as a service). */
+export async function restartGateway(): Promise<{ ok: true } | { ok: false; error: ApiError }> {
+  const result = await runCli(
+    WHITELIST["gateway-restart"].args,
+    true,
+    false,
+    GATEWAY_RESTART_TIMEOUT_MS
+  );
+  if (!result.ok) return result;
+  return { ok: true };
 }
 
 export async function getHealth(): Promise<{ ok: true; data: unknown } | { ok: false; error: ApiError }> {
@@ -294,4 +461,34 @@ export async function runAgent(
     stdout: result.stdout,
     raw: result.stdout,
   };
+}
+
+/**
+ * Verify gateway is reachable by pinging its HTTP endpoint.
+ * Returns true if gateway responds, false otherwise.
+ * Uses GET instead of HEAD for better compatibility.
+ */
+export async function pingGateway(): Promise<boolean> {
+  const port = getGatewayPort();
+  // Try the canvas endpoint first, then root as fallback
+  const endpoints = [
+    `http://127.0.0.1:${port}/__openclaw__/canvas/`,
+    `http://127.0.0.1:${port}/`,
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(url, { signal: controller.signal, method: "GET" });
+      clearTimeout(timeoutId);
+      // Any response (even 404, 405, etc.) means the gateway is up
+      if (res.status < 500) {
+        return true;
+      }
+    } catch {
+      // Continue to next endpoint
+    }
+  }
+  return false;
 }
