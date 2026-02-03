@@ -6,9 +6,10 @@
 
 import { execFile, spawn, exec } from "child_process";
 import { promisify } from "util";
-import { writeFileSync, unlinkSync } from "fs";
+import { writeFileSync, unlinkSync, mkdirSync, existsSync, rmSync, readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { homedir } from "os";
 import type { ApiError } from "@/types/api";
 import { OPENCLAW_ERROR_CODES, apiError } from "@/types/api";
 import type { SkillCard } from "@/types/dashboard";
@@ -19,6 +20,8 @@ const STATUS_TIMEOUT_MS = 5000;
 const DEFAULT_TIMEOUT_MS = 15000;
 /** Agent runs (LLM + tools) often take 30s–2min; use longer default */
 const AGENT_TIMEOUT_MS = 120000;
+/** Skills list can be slow on first run; use much longer timeout to avoid 502 */
+const SKILLS_TIMEOUT_MS = 90000; // 90 seconds - OpenClaw may need to initialize
 
 function getCliPath(): string {
   return process.env.OPENCLAW_CLI_PATH ?? "openclaw";
@@ -84,15 +87,25 @@ async function runCli(
 }
 
 /** Whitelisted commands: exact args only */
-const WHITELIST: Record<string, { args: string[]; shortTimeout: boolean; json: boolean }> = {
+const WHITELIST: Record<string, { args: string[]; shortTimeout: boolean; json: boolean; customTimeout?: number }> = {
   status: { args: ["status"], shortTimeout: true, json: false },
   "gateway-status": { args: ["gateway", "status", "--json"], shortTimeout: true, json: true },
   "gateway-restart": { args: ["gateway", "restart"], shortTimeout: false, json: false },
   health: { args: ["health", "--json"], shortTimeout: false, json: true },
   sessions: { args: ["sessions", "--json"], shortTimeout: false, json: true },
-  skills: { args: ["skills", "list"], shortTimeout: false, json: false },
+  skills: { args: ["skills", "list"], shortTimeout: false, json: false, customTimeout: SKILLS_TIMEOUT_MS },
+  "skills-json": { args: ["skills", "list", "--json"], shortTimeout: false, json: true, customTimeout: SKILLS_TIMEOUT_MS },
   "approvals-get": { args: ["approvals", "get"], shortTimeout: false, json: false },
 };
+
+/** Allowed skill name: alphanumeric, hyphen, underscore, dot (no path/shell). Max 120 chars. */
+const SAFE_SKILL_NAME = /^[a-zA-Z0-9_.-]{1,120}$/;
+function isSafeSkillName(name: string): boolean {
+  return typeof name === "string" && name.trim() === name && SAFE_SKILL_NAME.test(name);
+}
+
+const SKILL_INSTALL_TIMEOUT_MS = 60000;
+const SKILL_UNINSTALL_TIMEOUT_MS = 30000;
 
 /** Optional: get OpenClaw version for status/health */
 export async function getVersion(): Promise<{ ok: true; version: string } | { ok: false; error: ApiError }> {
@@ -351,65 +364,401 @@ function slugify(name: string): string {
     || "skill";
 }
 
+/** True if line is only table separators (dashes, pipes, spaces). */
+function isSeparatorLine(line: string): boolean {
+  return /^[\s|\-_:]+$/.test(line.trim());
+}
+
+/** True if string looks like a valid skill name (has at least one letter, not a header/separator). */
+function isLikelySkillName(name: string): boolean {
+  const t = name.trim();
+  if (!t || t.length > 120) return false;
+  if (/^(Status|Skill|Description|Source)$/i.test(t)) return false;
+  if (isSeparatorLine(t)) return false;
+  return /[a-zA-Z]/.test(t);
+}
+
+/** Build one SkillCard from parsed fields (shared by JSON and table). */
+function toSkillCard(
+  name: string,
+  i: number,
+  opts: {
+    description?: string;
+    authorId?: string;
+    authorName?: string;
+    authorReputation?: "verified" | "community" | "unknown";
+    dependencyRiskScore?: number;
+    usageCount?: number;
+    timeToRollback?: string;
+    hasDryRun?: boolean;
+    status?: "ready" | "missing" | "disabled";
+    source?: string;
+  } = {}
+): SkillCard {
+  return {
+    id: slugify(name) + "-" + i,
+    name,
+    description: (opts.description ?? "").slice(0, 500),
+    authorId: opts.authorId ?? "openclaw",
+    authorName: opts.authorName ?? "OpenClaw",
+    authorReputation: opts.authorReputation ?? "community",
+    dependencyRiskScore: opts.dependencyRiskScore ?? 50,
+    usageCount: opts.usageCount,
+    timeToRollback: opts.timeToRollback,
+    hasDryRun: opts.hasDryRun ?? false,
+    status: opts.status,
+    source: opts.source,
+  };
+}
+
 /**
  * Map OpenClaw skills list output to SkillCard[].
- * CLI output format may vary; we parse line-based or JSON if present.
- * SkillCard fields may be defaulted when OpenClaw does not provide them.
+ * Tries --json first; falls back to table parsing. Filters out headers and separator rows.
  */
 export async function getSkills(): Promise<{ ok: true; skills: SkillCard[] } | { ok: false; error: ApiError }> {
-  const result = await runCli(WHITELIST.skills.args, false, false);
+  // Prefer JSON if CLI supports it
+  const jsonResult = await runCli(
+    WHITELIST["skills-json"].args,
+    true,
+    false,
+    WHITELIST["skills-json"].customTimeout
+  );
+  if (jsonResult.ok) {
+    const raw = jsonResult.stdout.trim();
+    if (raw.startsWith("[") || raw.startsWith("{")) {
+      try {
+        const data = raw.startsWith("[") ? (JSON.parse(raw) as unknown[]) : (JSON.parse(raw) as { skills?: unknown[] }).skills;
+        const arr = Array.isArray(data) ? data : [];
+        const skills: SkillCard[] = [];
+        for (let i = 0; i < arr.length; i++) {
+          const item = arr[i];
+          if (item && typeof item === "object" && "name" in item) {
+            const o = item as Record<string, unknown>;
+            const name = String(o.name ?? `skill-${i}`).trim();
+            if (!isLikelySkillName(name)) continue;
+            const statusVal = o.status as string | undefined;
+            const status =
+              statusVal === "ready" || statusVal === "missing" || statusVal === "disabled"
+                ? statusVal
+                : undefined;
+            skills.push(
+              toSkillCard(name, i, {
+                description: String(o.description ?? ""),
+                authorId: String(o.authorId ?? "openclaw"),
+                authorName: String(o.authorName ?? "OpenClaw"),
+                authorReputation: (o.authorReputation as "verified" | "community" | "unknown") ?? "community",
+                dependencyRiskScore: typeof o.dependencyRiskScore === "number" ? o.dependencyRiskScore : 50,
+                usageCount: typeof o.usageCount === "number" ? o.usageCount : undefined,
+                timeToRollback: typeof o.timeToRollback === "string" ? o.timeToRollback : undefined,
+                hasDryRun: Boolean(o.hasDryRun),
+                status,
+                source: typeof o.source === "string" ? o.source : undefined,
+              })
+            );
+          }
+        }
+        return { ok: true, skills };
+      } catch {
+        // fall through to table
+      }
+    }
+  }
+
+  const result = await runCli(
+    WHITELIST.skills.args,
+    false,
+    false,
+    WHITELIST.skills.customTimeout
+  );
   if (!result.ok) return result;
 
   const raw = result.stdout.trim();
   const skills: SkillCard[] = [];
+  const lines = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const headerLike = /^\|?\s*Status\s*\|/i;
+  const summaryLike = /^Skills\s*\(\d+\s*\/\s*\d+\s*ready\)/i;
 
-  // Try JSON first (if CLI ever outputs --json)
-  if (raw.startsWith("[")) {
-    try {
-      const arr = JSON.parse(raw) as unknown[];
-      for (let i = 0; i < arr.length; i++) {
-        const item = arr[i];
-        if (item && typeof item === "object" && "name" in item) {
-          const o = item as Record<string, unknown>;
-          const name = String(o.name ?? `skill-${i}`);
-          skills.push({
-            id: slugify(name) + "-" + i,
-            name,
-            description: String(o.description ?? ""),
-            authorId: String(o.authorId ?? "openclaw"),
-            authorName: String(o.authorName ?? "OpenClaw"),
-            authorReputation: (o.authorReputation as "verified" | "community" | "unknown") ?? "community",
-            dependencyRiskScore: typeof o.dependencyRiskScore === "number" ? o.dependencyRiskScore : 50,
-            usageCount: typeof o.usageCount === "number" ? o.usageCount : undefined,
-            timeToRollback: typeof o.timeToRollback === "string" ? o.timeToRollback : undefined,
-            hasDryRun: Boolean(o.hasDryRun),
-          });
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (summaryLike.test(line) || headerLike.test(line) || isSeparatorLine(line)) continue;
+
+    const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+    if (cells.length >= 2) {
+      const first = cells[0];
+      const firstLower = first.toLowerCase();
+      const isHeaderRow =
+        first === "Status" ||
+        first === "Skill" ||
+        /^(Status|Skill|Description|Source)$/i.test(first);
+      if (isHeaderRow && cells.some((c) => /^(Status|Skill|Description|Source)$/i.test(c))) continue;
+
+      let status: "ready" | "missing" | "disabled" | undefined;
+      let name: string;
+      let description = "";
+      let source: string | undefined;
+
+      // 4-column table: Status | Skill | Description | Source
+      const looksLikeFourColumn =
+        cells.length >= 4 &&
+        (firstLower === "ready" || firstLower === "missing" || firstLower === "disabled" ||
+          firstLower.includes("ready") || firstLower.includes("missing") || firstLower.includes("disabled") ||
+          first === "✓" || /^\s*x\s+/i.test(first));
+      if (looksLikeFourColumn && cells.length >= 4) {
+        status =
+          firstLower.includes("missing") || /^\s*x\s+/i.test(first)
+            ? "missing"
+            : firstLower.includes("ready") || first === "✓"
+              ? "ready"
+              : firstLower.includes("disabled")
+                ? "disabled"
+                : undefined;
+        name = cells[1] ?? first;
+        description = cells[2] ?? "";
+        source = cells[3];
+      } else {
+        // Combined first column: "X missing 🔒 1password" or "✓ ready foo"
+        if (firstLower.includes("missing") || /^\s*x\s+/i.test(first)) {
+          status = "missing";
+          name = first.replace(/^[x✓]\s*missing\s*🔒?\s*/gi, "").trim();
+          description = cells[1] ?? "";
+          source = cells[2] ?? cells[3];
+        } else if (firstLower.includes("ready") || first === "✓" || first === "ok") {
+          status = "ready";
+          name = first.replace(/^✓\s*ready\s*/gi, "").trim() || (cells[1] ?? first);
+          description = cells[2] ?? cells[1] ?? "";
+          source = cells[3] ?? cells[2];
+        } else if (firstLower.includes("disabled")) {
+          status = "disabled";
+          name = first.replace(/^.*disabled\s*/gi, "").trim() || (cells[1] ?? first);
+          description = cells[2] ?? cells[1] ?? "";
+          source = cells[3] ?? cells[2];
+        } else {
+          name = first;
+          description = cells[1] ?? "";
+          source = cells[2] ?? cells[3];
         }
       }
-      return { ok: true, skills };
-    } catch {
-      // fall through to line-based
-    }
-  }
 
-  // Line-based: each non-empty line is a skill name
-  const lines = raw.split(/\r?\n/).filter((s) => s.trim());
-  for (let i = 0; i < lines.length; i++) {
-    const name = lines[i].trim();
-    if (!name) continue;
-    skills.push({
-      id: slugify(name) + "-" + i,
-      name,
-      description: "",
-      authorId: "openclaw",
-      authorName: "OpenClaw",
-      authorReputation: "community",
-      dependencyRiskScore: 50,
-      hasDryRun: false,
-    });
+      const cleanName = name.trim() || (cells[1] ?? cells[0] ?? "").trim();
+      if (!isLikelySkillName(cleanName)) continue;
+
+      skills.push(
+        toSkillCard(cleanName, i, {
+          description,
+          status,
+          source,
+        })
+      );
+      continue;
+    }
+
+    const name = line.replace(/^\|?\s*|\s*\|?$/g, "").trim();
+    if (!isLikelySkillName(name)) continue;
+
+    skills.push(toSkillCard(name, i, {}));
   }
 
   return { ok: true, skills };
+}
+
+/** Resolve OpenClaw skills directory. Uses env or default ~/.openclaw/skills */
+function getOpenClawSkillsDir(): string {
+  const workdir = process.env.OPENCLAW_WORKSPACE || process.env.CLAWHUB_WORKDIR || join(homedir(), ".openclaw");
+  return join(workdir, "skills");
+}
+
+/** Scan skills directory for folders with SKILL.md. Returns SkillCard[] for installed-but-unlisted skills. */
+export function getSkillsFromFilesystem(): SkillCard[] {
+  const skillsDir = getOpenClawSkillsDir();
+  if (!existsSync(skillsDir)) return [];
+  const skills: SkillCard[] = [];
+  try {
+    const entries = readdirSync(skillsDir, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const skillPath = join(skillsDir, e.name);
+      const skillMd = join(skillPath, "SKILL.md");
+      if (existsSync(skillMd)) {
+        const name = e.name;
+        if (!isLikelySkillName(name)) continue;
+        skills.push(
+          toSkillCard(name, skills.length, {
+            status: "ready",
+            source: "filesystem",
+            description: "Installed via Maltbot",
+          })
+        );
+      }
+    }
+  } catch {
+    // ignore read errors
+  }
+  return skills;
+}
+
+/**
+ * Install a skill via ClawHub (npx clawhub install).
+ * OpenClaw CLI has no "skills install" — use ClawHub instead.
+ */
+export async function installSkillViaClawHub(
+  slug: string
+): Promise<{ ok: true; stdout: string } | { ok: false; error: ApiError }> {
+  if (!isSafeSkillName(slug)) {
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, "Invalid skill name") };
+  }
+  const workdir = process.env.OPENCLAW_WORKSPACE || process.env.CLAWHUB_WORKDIR || join(homedir(), ".openclaw");
+  const useShell = process.platform === "win32";
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      "npx",
+      ["clawhub@latest", "install", slug, "--no-input", "--workdir", workdir],
+      {
+        timeout: SKILL_INSTALL_TIMEOUT_MS,
+        maxBuffer: 2 * 1024 * 1024,
+        encoding: "utf8",
+        shell: useShell,
+      }
+    );
+    return { ok: true, stdout: (stdout ?? "") + (stderr ?? "") };
+  } catch (err: unknown) {
+    const e = err as { message?: string; killed?: boolean; signal?: string };
+    if (e.killed && (e.signal === "SIGTERM" || e.signal === "SIGKILL")) {
+      return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.TIMEOUT, "ClawHub install timed out") };
+    }
+    const message = (e.message ?? String(err)).slice(0, 500);
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, message) };
+  }
+}
+
+/**
+ * Install Moltbook skill from URL (not on ClawHub).
+ * Fetches SKILL.md, HEARTBEAT.md, MESSAGING.md, skill.json from www.moltbook.com
+ */
+export async function installMoltbookSkill(): Promise<{ ok: true } | { ok: false; error: ApiError }> {
+  const BASE = "https://www.moltbook.com";
+  const skillsDir = getOpenClawSkillsDir();
+  const targetDir = join(skillsDir, "moltbook");
+
+  const files = ["skill.md", "heartbeat.md", "messaging.md"];
+  const jsonUrl = `${BASE}/skill.json`;
+
+  try {
+    if (!existsSync(skillsDir)) {
+      mkdirSync(skillsDir, { recursive: true });
+    }
+    mkdirSync(targetDir, { recursive: true });
+
+    const fileMap: Record<string, string> = {
+      "skill.md": "SKILL.md",
+      "heartbeat.md": "HEARTBEAT.md",
+      "messaging.md": "MESSAGING.md",
+    };
+    for (const f of files) {
+      const url = `${BASE}/${f}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+      const text = await res.text();
+      const outName = fileMap[f] ?? f;
+      writeFileSync(join(targetDir, outName), text, "utf8");
+    }
+
+    try {
+      const jsonRes = await fetch(jsonUrl);
+      if (jsonRes.ok) {
+        const json = await jsonRes.text();
+        writeFileSync(join(targetDir, "package.json"), json, "utf8");
+      }
+    } catch {
+      // package.json optional
+    }
+
+    // Append Maltbot wiring: agent proposes → human approves in Decide Inbox
+    const maltbotSection = `
+
+---
+## Maltbot Integration (Human-in-the-Loop)
+
+When using Maltbot, **do not** call Moltbook API directly. Instead, propose actions to Maltbot's Decide Inbox:
+
+**Propose endpoint:** \`POST {{MALTBOT_URL}}/api/moltbook/actions/propose\`
+
+Set \`MALTBOT_URL\` (e.g. http://localhost:3000) where your Maltbot runs.
+
+**Example — propose a post:**
+\`\`\`json
+{
+  "actionType": "post",
+  "title": "Share discovery",
+  "description": "Post about X",
+  "reasoning": "Relevant to community",
+  "submolt": "general",
+  "content": "..."
+}
+\`\`\`
+
+A human approves in Decide Inbox; only approved actions run on Moltbook.
+`;
+    const skillPath = join(targetDir, "SKILL.md");
+    const existing = readFileSync(skillPath, "utf8");
+    const baseUrl = process.env.MALTBOT_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const withMaltbot = maltbotSection.replace("{{MALTBOT_URL}}", baseUrl);
+    if (!existing.includes("Maltbot Integration")) {
+      writeFileSync(skillPath, existing.trimEnd() + withMaltbot, "utf8");
+    }
+
+    return { ok: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, message.slice(0, 500)) };
+  }
+}
+
+/**
+ * Install a skill by name. Uses ClawHub for most skills; URL-based for moltbook.
+ */
+export async function installSkill(
+  skillName: string
+): Promise<{ ok: true; stdout: string } | { ok: false; error: ApiError }> {
+  if (!isSafeSkillName(skillName)) {
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, "Invalid skill name") };
+  }
+
+  const nameLower = skillName.toLowerCase();
+  if (nameLower === "moltbook") {
+    const result = await installMoltbookSkill();
+    if (!result.ok) return result;
+    return { ok: true, stdout: "Moltbook skill installed from www.moltbook.com" };
+  }
+
+  return installSkillViaClawHub(skillName);
+}
+
+function rmDirRecursive(dir: string): void {
+  if (existsSync(dir)) {
+    rmSync(dir, { recursive: true });
+  }
+}
+
+/**
+ * Uninstall a skill by removing its folder from the skills directory.
+ * OpenClaw CLI has no "skills uninstall" — we delete the skill folder directly.
+ */
+export async function uninstallSkill(
+  skillName: string
+): Promise<{ ok: true; stdout: string } | { ok: false; error: ApiError }> {
+  if (!isSafeSkillName(skillName)) {
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, "Invalid skill name") };
+  }
+  const skillsDir = getOpenClawSkillsDir();
+  const slug = skillName.toLowerCase().replace(/\s+/g, "-");
+  const targetDir = join(skillsDir, slug);
+  try {
+    rmDirRecursive(targetDir);
+    return { ok: true, stdout: `Removed ${targetDir}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: apiError(OPENCLAW_ERROR_CODES.CLI_ERROR, message.slice(0, 500)) };
+  }
 }
 
 export async function getApprovals(): Promise<{ ok: true; raw: string } | { ok: false; error: ApiError }> {

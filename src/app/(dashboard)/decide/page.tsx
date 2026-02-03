@@ -7,8 +7,9 @@ import { useDecideInboxData } from "@/hooks/useDecideInboxData";
 import type { DecideInboxItem } from "@/types/dashboard";
 import { ProjectDecisionCard } from "@/components/decide/ProjectDecisionCard";
 import { SocialActionCard } from "@/components/decide/SocialActionCard";
+import { DevActionCard } from "@/components/decide/DevActionCard";
 
-type Filter = "all" | "project" | "social" | "ci_cr";
+type Filter = "all" | "project" | "social" | "ci_cr" | "dev";
 
 function isProject(item: DecideInboxItem): item is Extract<DecideInboxItem, { category: "project" }> {
   return item.category === "project";
@@ -20,6 +21,10 @@ function isSocial(item: DecideInboxItem): item is Extract<DecideInboxItem, { cat
 
 function isCICR(item: DecideInboxItem): item is Extract<DecideInboxItem, { category: "ci_cr" }> {
   return item.category === "ci_cr";
+}
+
+function isDev(item: DecideInboxItem): item is Extract<DecideInboxItem, { category: "dev" }> {
+  return item.category === "dev";
 }
 
 function CICRAlertCard({
@@ -64,7 +69,9 @@ function DecideInboxContent() {
   const searchParams = useSearchParams();
   const filterParam = searchParams.get("filter") as Filter | null;
   const filter: Filter =
-    filterParam && ["all", "project", "social", "ci_cr"].includes(filterParam) ? filterParam : "all";
+    filterParam && ["all", "project", "social", "ci_cr", "dev"].includes(filterParam)
+      ? filterParam
+      : "all";
 
   const { items, loading, refetch } = useDecideInboxData();
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
@@ -72,12 +79,13 @@ function DecideInboxContent() {
 
   const act = async (id: string, action: "ignore" | "approve" | "deeper") => {
     const item = items.find((i) => i.id === id);
-    const isSocialWithPayload = isSocial(item!) && item?.moltbookPayload;
+    const isSocialWithPayload = item && isSocial(item) && item?.moltbookPayload;
+    const isDevItem = item && isDev(item);
 
-    if (action === "approve" && isSocialWithPayload) {
+    if (action === "approve" && (isSocialWithPayload || isDevItem)) {
       setExecuting(id);
       try {
-        const res = await fetch("/api/moltbook/actions/execute", {
+        const res = await fetch("/api/decide/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id }),
@@ -97,16 +105,19 @@ function DecideInboxContent() {
       return;
     }
 
-    if (action === "ignore" && isSocialWithPayload) {
+    if (action === "ignore" && (isSocialWithPayload || isDevItem)) {
       try {
-        const res = await fetch("/api/moltbook/actions/ignore", {
+        const res = await fetch("/api/decide/ignore", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id }),
         });
-        if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
           setRemovedIds((prev) => new Set(prev).add(id));
           refetch();
+        } else {
+          setRemovedIds((prev) => new Set(prev).add(id));
         }
       } catch {
         setRemovedIds((prev) => new Set(prev).add(id));
@@ -124,6 +135,7 @@ function DecideInboxContent() {
     if (filter === "project") return visibleItems.filter(isProject);
     if (filter === "social") return visibleItems.filter(isSocial);
     if (filter === "ci_cr") return visibleItems.filter(isCICR);
+    if (filter === "dev") return visibleItems.filter(isDev);
     return visibleItems;
   }, [visibleItems, filter]);
 
@@ -141,8 +153,8 @@ function DecideInboxContent() {
         </p>
       </section>
 
-      <div className="flex gap-2 mb-6">
-        {(["all", "project", "social", "ci_cr"] as const).map((f) => (
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {(["all", "project", "social", "ci_cr", "dev"] as const).map((f) => (
           <Link
             key={f}
             href={f === "all" ? "/decide" : `/decide?filter=${f}`}
@@ -152,7 +164,15 @@ function DecideInboxContent() {
                 : "bg-zinc-800/50 text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            {f === "all" ? "All" : f === "project" ? "Project" : f === "social" ? "Social" : "CI/CR"}
+            {f === "all"
+              ? "All"
+              : f === "project"
+                ? "Project"
+                : f === "social"
+                  ? "Social"
+                  : f === "ci_cr"
+                    ? "CI/CR"
+                    : "Dev"}
           </Link>
         ))}
       </div>
@@ -175,6 +195,16 @@ function DecideInboxContent() {
           if (isCICR(item)) {
             return <CICRAlertCard key={item.id} item={item} onAct={act} />;
           }
+          if (isDev(item)) {
+            return (
+              <DevActionCard
+                key={item.id}
+                item={item}
+                onAct={act}
+                isExecuting={executing === item.id}
+              />
+            );
+          }
           return null;
         })}
       </ul>
@@ -187,7 +217,7 @@ function DecideInboxContent() {
       {!loading && filteredItems.length === 0 && (
         <p className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30 p-8 text-center text-sm text-zinc-500">
           {filter === "all"
-            ? "Inbox clear. New items appear when your agent proposes a Moltbook action (post, comment, follow) via the Direct to Agent interface."
+            ? "Inbox clear. New items appear when your agent proposes actions (social, dev) via the propose API."
             : `No ${filter} items pending. Try another filter.`}
         </p>
       )}

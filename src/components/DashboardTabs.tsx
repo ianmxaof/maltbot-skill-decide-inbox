@@ -14,6 +14,7 @@ const TABS = [
   { href: "/radar", label: "CI/CR Radar", short: "Radar" },
   { href: "/skills", label: "Skills", short: "Skills" },
   { href: "/moltbook", label: "Moltbook Hub", short: "Moltbook" },
+  { href: "/command-center", label: "Command Center", short: "CC" },
   { href: "/settings", label: "Settings", short: "Settings" },
 ] as const;
 

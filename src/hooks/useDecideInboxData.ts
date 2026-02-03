@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { DecideInboxItem } from "@/types/dashboard";
 
-/** Real pending items from /api/moltbook/pending (agent-proposed Moltbook actions). */
+/** Real pending items from /api/decide/pending (social + dev actions). */
 export function useDecideInboxData() {
   const [items, setItems] = useState<DecideInboxItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -11,7 +11,7 @@ export function useDecideInboxData() {
   const refetch = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/moltbook/pending");
+      const res = await fetch("/api/decide/pending");
       const data = await res.json();
       const raw = Array.isArray(data.items) ? data.items : [];
       setItems(raw as DecideInboxItem[]);

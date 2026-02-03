@@ -19,6 +19,9 @@ dist
 # Agent roster (contains API keys)
 .data
 
+# Command Center dev persistence
+.research-tasks.json
+
 # Debug
 npm-debug.log*
 yarn-debug.log*

@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Eye, MessageSquare, Brain, ExternalLink, ChevronRight, AlertTriangle } from "lucide-react";
+import { Eye, MessageSquare, Brain, ExternalLink, ChevronRight, AlertTriangle, Inbox, Loader2 } from "lucide-react";
 import type { MoltbookAgent, MoltbookPost, BehaviorAnomaly } from "@/types/dashboard";
 import { AgentStatusBar } from "../widgets/AgentStatusBar";
 import { SignalCard } from "../widgets/SignalCard";
@@ -16,6 +17,8 @@ export function OverviewPanel({
   socialPendingCount,
   isConfigured,
   roster = [],
+  profileError,
+  profileHint,
 }: {
   agent: MoltbookAgent;
   signals: MoltbookPost[];
@@ -23,7 +26,37 @@ export function OverviewPanel({
   socialPendingCount: number;
   isConfigured?: boolean;
   roster?: RosterAgent[];
+  profileError?: string;
+  profileHint?: string;
 }) {
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testSent, setTestSent] = useState(false);
+
+  const sendTestToInbox = async () => {
+    setSendingTest(true);
+    setTestSent(false);
+    try {
+      const res = await fetch("/api/moltbook/actions/propose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actionType: "post",
+          title: "Test post from Moltbook Hub",
+          description: "Sample proposal to verify Decide Inbox flow",
+          reasoning: "You clicked Send test to Decide Inbox to confirm items appear when the agent proposes.",
+          submolt: "general",
+          content: "This is a test post. Approve or ignore in Decide Inbox.",
+          riskLevel: "low",
+        }),
+      });
+      if (res.ok) {
+        setTestSent(true);
+      }
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   return (
     <div className="grid grid-cols-3 gap-6">
       {/* Connect to Moltbook (when not configured) */}
@@ -35,6 +68,14 @@ export function OverviewPanel({
 
       {/* Left Column - Stats & Status */}
       <div className="space-y-6">
+        {profileError && (
+          <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200/90 text-sm">
+            <p className="font-medium">Profile temporarily unavailable</p>
+            <p className="mt-1 text-zinc-400">{profileError}</p>
+            {profileHint && <p className="mt-0.5 text-xs text-zinc-500">{profileHint}</p>}
+            <p className="mt-2 text-xs text-zinc-500">Showing placeholder data. Use Refresh to retry.</p>
+          </div>
+        )}
         {/* Agent Card */}
         <div className="p-5 bg-zinc-900 rounded-lg border border-zinc-800">
           <div className="flex items-center gap-4 mb-4">
@@ -66,6 +107,26 @@ export function OverviewPanel({
         <div className="p-5 bg-zinc-900/50 rounded-lg border border-zinc-800">
           <h3 className="text-sm font-semibold text-zinc-400 mb-3">QUICK ACTIONS</h3>
           <div className="space-y-2">
+            <button
+              type="button"
+              onClick={sendTestToInbox}
+              disabled={sendingTest}
+              className="w-full flex items-center gap-3 px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-lg transition-colors text-left disabled:opacity-50"
+            >
+              {sendingTest ? (
+                <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+              ) : (
+                <Inbox className="w-4 h-4 text-amber-400" />
+              )}
+              <span className="text-sm text-amber-400">
+                {testSent ? "Sent — check Decide Inbox" : sendingTest ? "Sending…" : "Send test to Decide Inbox"}
+              </span>
+              {testSent && (
+                <Link href="/decide?filter=social" className="ml-auto text-xs text-amber-400/80 hover:underline">
+                  Open →
+                </Link>
+              )}
+            </button>
             <a
               href={`https://www.moltbook.com/u/${encodeURIComponent(agent.name)}`}
               target="_blank"

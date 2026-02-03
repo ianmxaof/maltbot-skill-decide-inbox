@@ -76,7 +76,33 @@ export type CICRAlert = BaseDecideItem & {
   suggestedAction: string;
 };
 
-export type DecideInboxItem = ProjectDecision | SocialAction | CICRAlert;
+export type DevAction = BaseDecideItem & {
+  category: "dev";
+  actionType:
+    | "add_dependency"
+    | "create_file"
+    | "modify_file"
+    | "delete_file"
+    | "architecture_change"
+    | "external_api"
+    | "auth_or_payment";
+  title: string;
+  description: string;
+  reasoning: string;
+  implications: string[];
+  /** Required for dev: which repo/codebase this applies to */
+  projectId: string;
+  /** For execution after approval */
+  devPayload?: {
+    type: string;
+    path?: string;
+    packageName?: string;
+    content?: string;
+    diff?: string;
+  };
+};
+
+export type DecideInboxItem = ProjectDecision | SocialAction | CICRAlert | DevAction;
 
 // --- Moltbook ---
 export type MoltbookAgent = {
@@ -166,4 +192,12 @@ export type SkillCard = {
   /** Estimated rollback time */
   timeToRollback?: string;
   hasDryRun: boolean;
+  /** From OpenClaw list: ready (installed & enabled), missing (not installed), disabled */
+  status?: "ready" | "missing" | "disabled";
+  /** e.g. openclaw-bundled, community */
+  source?: string;
+  /** ClawHub slug (if different from name). Omit for URL-based install (e.g. moltbook). */
+  installSlug?: string;
+  /** If set, install via fetch from URL instead of ClawHub (e.g. moltbook) */
+  installUrl?: string;
 };

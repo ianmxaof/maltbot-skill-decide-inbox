@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    const item = markIgnored(id);
+    const item = await markIgnored(id);
     if (!item) {
       return NextResponse.json({ error: "Not found or already processed" }, { status: 404 });
     }
