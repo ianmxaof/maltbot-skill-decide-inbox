@@ -84,7 +84,11 @@ function RegistrationSuccess({
 const DEFAULT_DESCRIPTION =
   "Governance and marketplace layer for AI agents. Human-in-the-loop decisions via Decide Inbox.";
 
-export function MoltbookRegisterWidget() {
+type MoltbookRegisterWidgetProps = {
+  onAddedToRoster?: () => void;
+};
+
+export function MoltbookRegisterWidget({ onAddedToRoster }: MoltbookRegisterWidgetProps = {}) {
   const [name, setName] = useState(DEFAULT_NAME);
   const [description, setDescription] = useState(DEFAULT_DESCRIPTION);
   const [loading, setLoading] = useState(false);
@@ -134,6 +138,7 @@ export function MoltbookRegisterWidget() {
           setResult(null);
           setName("");
           setDescription("");
+          onAddedToRoster?.();
         }}
       />
     );

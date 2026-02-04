@@ -36,14 +36,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing id" }, { status: 400 });
     }
 
-    const item = getPending(id);
+    const item = await getPending(id);
     if (!item) {
       return NextResponse.json({ success: false, error: "Action not found or already processed" }, { status: 404 });
     }
 
     const payload = item.moltbookPayload;
     if (!payload?.type) {
-      remove(id);
+      await remove(id);
       return NextResponse.json({
         success: false,
         error: "No moltbookPayload — cannot execute (possibly mock item)",
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (result.success) {
-      remove(id);
+      await remove(id);
       return NextResponse.json({ success: true });
     }
 

@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       ...(body.title && { title: body.title }),
     };
 
-    const item = addPending({
+    const item = await addPending({
       category: "social",
       actionType: actionType as "post" | "comment" | "follow" | "create_submolt",
       title,

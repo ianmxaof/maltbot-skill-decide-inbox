@@ -39,12 +39,21 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const out = await getMe(key);
+  let out = await getMe(key);
+  // Retry once on timeout or transient failure so slow Moltbook responses can succeed
+  if (!out.success && (out.error?.includes("timed out") || out.error === "Request failed")) {
+    await new Promise((r) => setTimeout(r, 2000));
+    out = await getMe(key);
+  }
   if (!out.success) {
-    return NextResponse.json(
-      { configured: true, error: out.error },
-      { status: out.error?.includes("401") ? 401 : 502 }
-    );
+    // Return 200 with error so the UI can show "Profile unavailable" and still render the rest of the page
+    return NextResponse.json({
+      configured: true,
+      error: out.error,
+      hint: out.hint,
+      agent: null,
+      recentPosts: [],
+    });
   }
 
   const agent = out.agent;

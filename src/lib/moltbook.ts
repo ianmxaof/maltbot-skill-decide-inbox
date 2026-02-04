@@ -8,6 +8,9 @@
 
 const BASE = "https://www.moltbook.com/api/v1";
 
+/** Timeout for Moltbook API calls (ms). Profile/me can be slow (~25s); use 30s so it can complete. */
+const MOLTBOOK_FETCH_TIMEOUT_MS = 30_000;
+
 function getDefaultApiKey(): string | undefined {
   return process.env.MOLTBOOK_API_KEY;
 }
@@ -32,24 +35,44 @@ async function moltbookFetch<T>(
   }
 
   const url = path.startsWith("http") ? path : `${BASE}${path}`;
-  const res = await fetch(url, {
-    ...fetchOpts,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      ...(fetchOpts.headers as Record<string, string>),
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), MOLTBOOK_FETCH_TIMEOUT_MS);
 
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
+  try {
+    const res = await fetch(url, {
+      ...fetchOpts,
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        ...(fetchOpts.headers as Record<string, string>),
+      },
+    });
+    clearTimeout(timeoutId);
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        success: false,
+        error: (json as { error?: string }).error || `HTTP ${res.status}`,
+        hint: (json as { hint?: string }).hint,
+      };
+    }
+    return { success: true, data: json as T };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      return {
+        success: false,
+        error: "Moltbook API timed out",
+        hint: "Try again in a moment. If it persists, check https://www.moltbook.com status.",
+      };
+    }
     return {
       success: false,
-      error: (json as { error?: string }).error || `HTTP ${res.status}`,
-      hint: (json as { hint?: string }).hint,
+      error: err instanceof Error ? err.message : "Request failed",
     };
   }
-  return { success: true, data: json as T };
 }
 
 // --- Raw Moltbook response shapes (partial) ---
@@ -94,9 +117,9 @@ export type MoltbookFeedResponse = {
 };
 
 /** Get authenticated agent's profile. Pass apiKey for roster agent. */
-export async function getMe(apiKey?: string | null): Promise<{ success: boolean; agent?: MoltbookProfileAgent; error?: string }> {
+export async function getMe(apiKey?: string | null): Promise<{ success: boolean; agent?: MoltbookProfileAgent; error?: string; hint?: string }> {
   const out = await moltbookFetch<MoltbookMeResponse | MoltbookProfileAgent>("/agents/me", { apiKey });
-  if (!out.success) return { success: false, error: out.error };
+  if (!out.success) return { success: false, error: out.error, hint: out.hint };
   const agent =
     (out.data as MoltbookMeResponse)?.agent ??
     (typeof (out.data as MoltbookProfileAgent)?.name === "string" ? (out.data as MoltbookProfileAgent) : undefined);
@@ -182,6 +205,83 @@ export async function followAgent(agentName: string, apiKey?: string | null): Pr
     apiKey,
   });
   return { success: !!out.success, error: out.error };
+}
+
+/** Upvote a post. Moltbook API: POST /posts/:id/upvote */
+export async function upvotePost(postId: string, apiKey?: string | null): Promise<{ success: boolean; error?: string }> {
+  const out = await moltbookFetch<{ success?: boolean }>(`/posts/${encodeURIComponent(postId)}/upvote`, {
+    method: "POST",
+    apiKey,
+  });
+  return { success: !!out.success, error: out.error };
+}
+
+/** Upvote a comment. Moltbook API: POST /comments/:id/upvote */
+export async function upvoteComment(commentId: string, apiKey?: string | null): Promise<{ success: boolean; error?: string }> {
+  const out = await moltbookFetch<{ success?: boolean }>(`/comments/${encodeURIComponent(commentId)}/upvote`, {
+    method: "POST",
+    apiKey,
+  });
+  return { success: !!out.success, error: out.error };
+}
+
+// --- Normalized post shape for autopilot (flat author, submolt) ---
+export type MoltbookNormalizedPost = {
+  id: string;
+  title?: string;
+  content?: string;
+  url?: string;
+  upvotes?: number;
+  downvotes?: number;
+  created_at?: string;
+  author: string;
+  submolt: string;
+};
+
+function normalizePost(raw: MoltbookRawPost): MoltbookNormalizedPost {
+  const author =
+    typeof raw.author === "object" && raw.author?.name
+      ? raw.author.name
+      : typeof raw.author === "string"
+        ? raw.author
+        : "";
+  const submolt =
+    typeof raw.submolt === "string" ? raw.submolt : (raw.submolt as { name?: string })?.name ?? "";
+  return {
+    ...raw,
+    author,
+    submolt,
+  };
+}
+
+/**
+ * Class adapter for Moltbook API — used by the autopilot engine.
+ * Holds apiKey and delegates to existing functions; getFeed returns normalized posts (flat author, submolt).
+ */
+export class MoltbookClient {
+  constructor(private apiKey: string) {}
+
+  async getFeed(sort: "hot" | "new" | "top" = "hot", limit = 25): Promise<{ posts: MoltbookNormalizedPost[] }> {
+    const out = await getFeed({ sort, limit, apiKey: this.apiKey });
+    if (!out.success || !out.posts) return { posts: [] };
+    return { posts: out.posts.map(normalizePost) };
+  }
+
+  async upvote(postId: string): Promise<void> {
+    await upvotePost(postId, this.apiKey);
+  }
+
+  async createComment(postId: string, content: string): Promise<{ success: boolean; error?: string }> {
+    return createComment(postId, { content }, this.apiKey);
+  }
+
+  async follow(agentName: string): Promise<{ success: boolean; error?: string }> {
+    return followAgent(agentName, this.apiKey);
+  }
+
+  async createPost(post: { submolt: string; title: string; content?: string; url?: string }): Promise<{ success: boolean; error?: string }> {
+    return createPost(post, this.apiKey);
+  }
 }
 
 /** Execute create submolt. */

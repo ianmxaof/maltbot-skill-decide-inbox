@@ -7,6 +7,6 @@ import { NextResponse } from "next/server";
 import { listPending } from "@/lib/moltbook-pending";
 
 export async function GET() {
-  const items = listPending();
+  const items = await listPending();
   return NextResponse.json({ items });
 }

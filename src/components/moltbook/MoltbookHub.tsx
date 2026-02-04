@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Globe, Zap, Shield, Users } from "lucide-react";
+import { Globe, Zap, Shield, Users, Rocket } from "lucide-react";
 import { useMoltbookData } from "@/hooks/useMoltbookData";
 import { AgentStatusBar } from "./widgets/AgentStatusBar";
 import { AgentRosterPanel } from "./AgentRosterPanel";
@@ -9,12 +9,14 @@ import { OverviewPanel } from "./panels/OverviewPanel";
 import { SignalsPanel } from "./panels/SignalsPanel";
 import { SecurityPanel } from "./panels/SecurityPanel";
 import { NetworkPanel } from "./panels/NetworkPanel";
+import AutopilotControlPanel from "./AutopilotControlPanel";
 
 const SUB_TABS = [
   { id: "overview", label: "Overview", icon: Globe },
   { id: "signals", label: "Intelligence", icon: Zap },
   { id: "security", label: "Social Security", icon: Shield },
   { id: "network", label: "Network", icon: Users },
+  { id: "autopilot", label: "Autopilot", icon: Rocket },
 ] as const;
 
 type SubTabId = (typeof SUB_TABS)[number]["id"];
@@ -23,7 +25,7 @@ export function MoltbookHub() {
   const [activeTab, setActiveTab] = useState<SubTabId>("overview");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const { roster, agent, signals, exposure, anomalies, socialPendingCount, isConfigured, refetch } = useMoltbookData(selectedAgentId);
+  const { roster, agent, signals, exposure, anomalies, socialPendingCount, isConfigured, error: profileError, hint: profileHint, refetch } = useMoltbookData(selectedAgentId);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -40,7 +42,11 @@ export function MoltbookHub() {
         </div>
         {/* Agent Roster */}
         <div className="w-64 shrink-0">
-          <AgentRosterPanel selectedId={selectedAgentId} onSelect={setSelectedAgentId} />
+          <AgentRosterPanel
+            selectedId={selectedAgentId}
+            onSelect={setSelectedAgentId}
+            onAgentAdded={refetch}
+          />
         </div>
       </div>
 
@@ -72,11 +78,14 @@ export function MoltbookHub() {
           socialPendingCount={socialPendingCount}
           isConfigured={isConfigured}
           roster={roster}
+          profileError={profileError ?? undefined}
+          profileHint={profileHint ?? undefined}
         />
       )}
       {activeTab === "signals" && <SignalsPanel signals={signals} />}
       {activeTab === "security" && <SecurityPanel exposure={exposure} anomalies={anomalies} />}
       {activeTab === "network" && <NetworkPanel agent={agent} />}
+      {activeTab === "autopilot" && <AutopilotControlPanel />}
     </div>
   );
 }

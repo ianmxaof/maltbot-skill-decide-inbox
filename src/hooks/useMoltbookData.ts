@@ -12,9 +12,10 @@ import type { MoltbookAgent, MoltbookPost } from "@/types/dashboard";
 
 type MoltbookProfileRes = {
   configured: boolean;
-  agent?: MoltbookAgent;
+  agent?: MoltbookAgent | null;
   recentPosts?: MoltbookPost[];
   error?: string;
+  hint?: string;
 };
 
 type MoltbookFeedRes = {
@@ -94,6 +95,7 @@ export function useMoltbookData(selectedAgentId?: string | null) {
     lastSyncedAt: profile ? new Date().toISOString() : null,
     isConfigured,
     error: profile?.error ?? null,
+    hint: profile?.hint ?? null,
     loading,
     refetch,
   };

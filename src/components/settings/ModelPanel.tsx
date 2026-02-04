@@ -132,9 +132,13 @@ export function ModelPanel() {
       }
       if (data.alreadyRunning) {
         setError(null);
+        // Dispatch event even if already running (for wizard refresh)
+        window.dispatchEvent(new CustomEvent("settings:gatewayUpdated"));
         return;
       }
       setError(null);
+      // Notify other components that gateway was started
+      window.dispatchEvent(new CustomEvent("settings:gatewayUpdated"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start Gateway");
     } finally {
@@ -159,6 +163,8 @@ export function ModelPanel() {
         }
         return;
       }
+      // Notify other components that gateway was restarted
+      window.dispatchEvent(new CustomEvent("settings:gatewayUpdated"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to restart Gateway");
     } finally {
@@ -197,6 +203,8 @@ export function ModelPanel() {
             },
           },
         }));
+        // Notify other components that model was updated
+        window.dispatchEvent(new CustomEvent("settings:modelUpdated"));
       } else {
         setError(data.error ?? "Failed to save");
       }
