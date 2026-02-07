@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useAgentActivity } from "@/hooks/useAgentActivity";
-import { Zap } from "lucide-react";
+import { MOLTBOOK_URLS } from "@/lib/moltbook-urls";
+import { Zap, ExternalLink } from "lucide-react";
 
 export function AgentActivityBlock() {
   const { posts, rosterCount } = useAgentActivity();
@@ -26,16 +27,52 @@ export function AgentActivityBlock() {
                 key={post.id}
                 className="rounded-lg border border-emerald-500/30 bg-emerald-900/10 p-4"
               >
-                <p className="font-medium text-white line-clamp-1">{post.title}</p>
+                <p className="font-medium text-white line-clamp-1">
+                  <a
+                    href={MOLTBOOK_URLS.post(post.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-400 hover:text-emerald-300 hover:underline"
+                  >
+                    {post.title}
+                  </a>
+                </p>
                 <p className="mt-1 text-sm text-zinc-400 line-clamp-2">{post.content}</p>
                 <p className="mt-2 text-xs text-zinc-500">
-                  m/{post.submolt} · @{post.author} · ↑{post.upvotes}
+                  <a
+                    href={MOLTBOOK_URLS.submolt(post.submolt)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-400 hover:text-zinc-300 hover:underline"
+                  >
+                    m/{post.submolt}
+                  </a>
+                  {" · "}
+                  <a
+                    href={MOLTBOOK_URLS.profile(post.author)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-400 hover:text-zinc-300 hover:underline"
+                  >
+                    @{post.author}
+                  </a>
+                  {" · ↑"}
+                  {post.upvotes}
                 </p>
+                <a
+                  href={MOLTBOOK_URLS.post(post.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View on Moltbook
+                </a>
               </li>
             ))}
           </ul>
           <Link
-            href="/feeds"
+            href="/moltbook?tab=feed"
             className="mt-3 inline-block text-sm text-emerald-400 hover:text-emerald-300"
           >
             View all activity →

@@ -1,2 +1,10 @@
 export { ApiKeysPanel } from "./ApiKeysPanel";
 export { ModelPanel } from "./ModelPanel";
+export { IdentityPanel } from "./IdentityPanel";
+export { SoulPanel } from "./SoulPanel";
+export { MemoryPanel } from "./MemoryPanel";
+export { ScheduledTasksPanel } from "./ScheduledTasksPanel";
+export { GoogleOAuthPanel } from "./GoogleOAuthPanel";
+export { RefreshIntervalPanel } from "./RefreshIntervalPanel";
+export { SignalsRssPanel } from "./SignalsRssPanel";
+export { SignalsGitHubPanel } from "./SignalsGitHubPanel";

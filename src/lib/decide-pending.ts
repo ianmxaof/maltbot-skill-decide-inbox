@@ -51,6 +51,7 @@ export function addPendingDev(
     id,
     createdAt: new Date().toISOString(),
     status: "pending",
+    visibility: "private",
   };
   store.set(id, full);
   return full;

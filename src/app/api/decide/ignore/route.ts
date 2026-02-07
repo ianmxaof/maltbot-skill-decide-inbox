@@ -1,8 +1,9 @@
 /**
  * POST /api/decide/ignore
  * Mark a proposed action as ignored. Routes by store:
- * - moltbook-pending -> markIgnored
  * - decide-pending (dev) -> markIgnoredDev
+ * - moltbook-pending -> markIgnored
+ * - signal-pending -> resolveSignal(id, "ignored")
  *
  * Body: { id: string }
  */
@@ -10,6 +11,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { markIgnored } from "@/lib/moltbook-pending";
 import { getPendingDev, markIgnoredDev } from "@/lib/decide-pending";
+import { resolveSignal } from "@/lib/signal-pending";
+import { appendProvenance } from "@/lib/decision-provenance";
+import { recordOutcomesForDecision } from "@/lib/signal-outcomes";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,11 +23,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing id" }, { status: 400 });
     }
 
+    const deniedBy = (body.deniedBy as string) || "dashboard";
+
     // Dev action
     const devItem = getPendingDev(id);
     if (devItem) {
       markIgnoredDev(id);
+      await appendProvenance({
+        decisionId: id,
+        triggeredBy: [],
+        awarenessResult: { allowed: true },
+        humanApproval: { approvedBy: deniedBy, timestamp: new Date().toISOString(), notes: "ignored" },
+      });
+      await recordOutcomesForDecision(id, "ignored", [], "unknown");
       return NextResponse.json({ success: true });
+    }
+
+    // Signal (Send to inbox)
+    if (id.startsWith("signal-")) {
+      const updated = await resolveSignal(id, "ignored");
+      if (updated) {
+        return NextResponse.json({ success: true });
+      }
+      return NextResponse.json(
+        { success: false, error: "Not found or already processed" },
+        { status: 404 }
+      );
     }
 
     // Social action
@@ -34,6 +59,13 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+    await appendProvenance({
+      decisionId: id,
+      triggeredBy: [],
+      awarenessResult: { allowed: true },
+      humanApproval: { approvedBy: deniedBy, timestamp: new Date().toISOString(), notes: "ignored" },
+    });
+    await recordOutcomesForDecision(id, "ignored", [], "unknown");
     return NextResponse.json({ success: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Ignore failed";

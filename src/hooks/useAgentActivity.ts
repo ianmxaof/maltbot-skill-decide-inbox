@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getRefreshIntervalMs, REFRESH_INTERVAL_CHANGED } from "@/lib/refresh-interval";
 
 export type MoltbookActivityPost = {
   id: string;
@@ -16,12 +17,20 @@ export type MoltbookActivityPost = {
   isOwnAgent?: boolean; // true if author is one of your roster agents
 };
 
-export function useAgentActivity() {
+export function useAgentActivity(options?: { pausePolling?: boolean }) {
+  const pausePolling = options?.pausePolling ?? false;
   const [posts, setPosts] = useState<MoltbookActivityPost[]>([]);
   const [rosterCount, setRosterCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
+  const [intervalMs, setIntervalMs] = useState(getRefreshIntervalMs);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const handler = () => setIntervalMs(getRefreshIntervalMs());
+    window.addEventListener(REFRESH_INTERVAL_CHANGED, handler);
+    return () => window.removeEventListener(REFRESH_INTERVAL_CHANGED, handler);
+  }, []);
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -41,14 +50,15 @@ export function useAgentActivity() {
 
   useEffect(() => {
     refetch();
-    // Clear any existing interval
     if (intervalRef.current) clearInterval(intervalRef.current);
-    // Set up 30-second refresh
-    intervalRef.current = setInterval(refetch, 30_000);
+    intervalRef.current = null;
+    if (!pausePolling && intervalMs > 0) {
+      intervalRef.current = setInterval(refetch, intervalMs);
+    }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [refetch]);
+  }, [refetch, pausePolling, intervalMs]);
 
   return { posts, rosterCount, loading, lastRefresh, refetch };
 }

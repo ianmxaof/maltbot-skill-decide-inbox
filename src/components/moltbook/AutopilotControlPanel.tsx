@@ -18,9 +18,12 @@ import {
   Eye,
   Shield,
   Zap,
+  ExternalLink,
 } from "lucide-react";
 
-type AutopilotMode = "off" | "conservative" | "balanced" | "aggressive";
+import { MOLTBOOK_URLS } from "@/lib/moltbook-urls";
+
+type AutopilotMode = "off" | "conservative" | "balanced" | "aggressive" | "creator" | "full";
 
 interface AutopilotStats {
   posts: number;
@@ -37,6 +40,8 @@ interface ActivityItem {
   targetAuthor?: string;
   /** Comment text, or for post: { submolt, title, content } */
   content?: string | { submolt?: string; title?: string; content?: string };
+  /** Post ID when type is post (if API returns it). */
+  postId?: string;
   autoApproved: boolean;
   timestamp: Date;
 }
@@ -50,8 +55,13 @@ interface AnomalyItem {
   detectedKeywords?: string[];
   timestamp: Date;
   status: "pending" | "approved" | "denied";
+  /** Source post (id, title) for comment anomalies — link to thread. */
+  post?: { id?: string; title?: string };
+  /** Target agent name for follow anomalies — link to profile. */
+  targetAgent?: string;
 }
 
+/** Capability profile labels and descriptions (industry language). */
 const MODE_CONFIG: Record<
   AutopilotMode,
   { label: string; description: string; color: string; icon: typeof Shield }
@@ -63,21 +73,33 @@ const MODE_CONFIG: Record<
     icon: Pause,
   },
   conservative: {
-    label: "Conservative",
+    label: "Read-Only Observer",
     description: "Upvotes only, everything else needs approval",
     color: "bg-blue-600",
     icon: Shield,
   },
   balanced: {
-    label: "Balanced",
-    description: "Auto-approve safe actions, review risky ones",
+    label: "Community Engager",
+    description: "Upvotes and follows auto; comments and posts need review",
     color: "bg-amber-600",
     icon: Gauge,
   },
+  creator: {
+    label: "Content Creator",
+    description: "Comments auto-approved, posts require review",
+    color: "bg-emerald-600",
+    icon: MessageSquare,
+  },
   aggressive: {
     label: "Aggressive",
-    description: "Full autonomy, anomalies only to inbox",
+    description: "Comments and posts auto; anomalies to inbox",
     color: "bg-red-600",
+    icon: Zap,
+  },
+  full: {
+    label: "Full Autonomy",
+    description: "Everything auto-approved including posts",
+    color: "bg-red-700",
     icon: Zap,
   },
 };
@@ -89,7 +111,10 @@ function getHeartbeatInterval(m: AutopilotMode): number {
     case "balanced":
       return 120;
     case "aggressive":
+    case "full":
       return 60;
+    case "creator":
+      return 90;
     default:
       return 0;
   }
@@ -107,6 +132,16 @@ function ActivityCard({ item }: { item: ActivityItem }) {
     "bg-blue-500/20 text-blue-400";
   const label =
     isUpvote ? "Upvoted" : isComment ? "Commented" : isFollow ? "Following" : "Posted";
+
+  const postUrl = item.target ? MOLTBOOK_URLS.post(item.target) : null;
+  const authorUrl = item.targetAuthor ? MOLTBOOK_URLS.profile(item.targetAuthor) : null;
+  const followUrl = isFollow && item.target ? MOLTBOOK_URLS.profile(item.target) : null;
+  const postSubmoltUrl =
+    isPost && item.content && typeof item.content === "object" && item.content.submolt
+      ? MOLTBOOK_URLS.submolt(item.content.submolt)
+      : null;
+  const postPermalink =
+    isPost && item.postId ? MOLTBOOK_URLS.post(item.postId) : isPost && item.target ? MOLTBOOK_URLS.post(item.target) : null;
 
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-800/40 p-4">
@@ -133,10 +168,35 @@ function ActivityCard({ item }: { item: ActivityItem }) {
           {isUpvote && (
             <>
               <p className="text-sm font-medium text-white mt-0.5">
-                {item.targetTitle || "Post"}
+                {postUrl ? (
+                  <a
+                    href={postUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-400 hover:text-amber-300 hover:underline"
+                  >
+                    {item.targetTitle || "Post"}
+                  </a>
+                ) : (
+                  item.targetTitle || "Post"
+                )}
               </p>
               {item.targetAuthor && (
-                <p className="text-xs text-zinc-500 mt-0.5">by @{item.targetAuthor}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  by{" "}
+                  {authorUrl ? (
+                    <a
+                      href={authorUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-zinc-400 hover:text-zinc-300 hover:underline"
+                    >
+                      @{item.targetAuthor}
+                    </a>
+                  ) : (
+                    `@${item.targetAuthor}`
+                  )}
+                </p>
               )}
             </>
           )}
@@ -144,27 +204,98 @@ function ActivityCard({ item }: { item: ActivityItem }) {
           {isComment && (
             <>
               <p className="text-xs text-zinc-500 mt-0.5">
-                On: {item.targetTitle || `post ${item.target}`}
+                On:{" "}
+                {postUrl ? (
+                  <a
+                    href={postUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-green-400 hover:text-green-300 hover:underline"
+                  >
+                    {item.targetTitle || `post ${item.target}`}
+                  </a>
+                ) : (
+                  item.targetTitle || `post ${item.target}`
+                )}
               </p>
               <blockquote className="mt-2 pl-3 border-l-2 border-zinc-600 text-sm text-zinc-300 italic">
                 {typeof item.content === "string" ? item.content : ""}
               </blockquote>
+              {postUrl && (
+                <a
+                  href={postUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-green-400 hover:text-green-300"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View thread on Moltbook
+                </a>
+              )}
             </>
           )}
 
           {isFollow && (
-            <p className="text-sm font-medium text-white mt-0.5">@{item.target}</p>
+            <p className="text-sm font-medium text-white mt-0.5">
+              {followUrl ? (
+                <a
+                  href={followUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-400 hover:text-purple-300 hover:underline"
+                >
+                  @{item.target}
+                </a>
+              ) : (
+                `@${item.target}`
+              )}
+            </p>
           )}
 
           {isPost && item.content && typeof item.content === "object" && "title" in item.content && (
             <>
               <p className="text-xs text-zinc-500 mt-0.5">
-                m/{item.content.submolt ?? "general"}
+                {(postSubmoltUrl ? (
+                  <a
+                    href={postSubmoltUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-400 hover:text-zinc-300 hover:underline"
+                  >
+                    m/{item.content.submolt ?? "general"}
+                  </a>
+                ) : (
+                  `m/${item.content.submolt ?? "general"}`
+                ))}
               </p>
-              <p className="text-sm font-medium text-white mt-0.5">{item.content.title}</p>
+              <p className="text-sm font-medium text-white mt-0.5">
+                {postPermalink ? (
+                  <a
+                    href={postPermalink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 hover:underline"
+                  >
+                    {item.content.title}
+                  </a>
+                ) : (
+                  item.content.title
+                )}
+              </p>
               <p className="text-sm text-zinc-300 mt-2 whitespace-pre-wrap">
                 {item.content.content}
               </p>
+              {postPermalink && (
+                <a
+                  href={postPermalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View post on Moltbook
+                </a>
+              )}
             </>
           )}
         </div>
@@ -205,13 +336,14 @@ export default function AutopilotControlPanel() {
       else setNextHeartbeat(null);
       if (Array.isArray(data.recentActivity)) {
         setRecentActivity(
-          data.recentActivity.map((a: { type: string; target?: string; targetTitle?: string; targetAuthor?: string; content?: string | { submolt?: string; title?: string; content?: string }; autoApproved?: boolean; timestamp?: string }, i: number) => ({
+          data.recentActivity.map((a: { type: string; target?: string; targetTitle?: string; targetAuthor?: string; content?: string | { submolt?: string; title?: string; content?: string }; autoApproved?: boolean; timestamp?: string; postId?: string; result?: { postId?: string } }, i: number) => ({
             id: `act-${i}-${a.timestamp ?? Date.now()}`,
             type: a.type as ActivityItem["type"],
             target: a.target ?? "",
             targetTitle: a.targetTitle,
             targetAuthor: a.targetAuthor,
             content: a.content,
+            postId: a.postId ?? (a.result as { postId?: string } | undefined)?.postId,
             autoApproved: a.autoApproved ?? true,
             timestamp: a.timestamp ? new Date(a.timestamp) : new Date(),
           }))
@@ -219,7 +351,7 @@ export default function AutopilotControlPanel() {
       }
       if (Array.isArray(data.anomalies)) {
         setAnomalies(
-          data.anomalies.map((a: { id?: string; reason?: string; actionType?: string; content?: unknown; detectedKeywords?: string[]; timestamp?: string }) => ({
+          data.anomalies.map((a: { id?: string; reason?: string; actionType?: string; content?: unknown; detectedKeywords?: string[]; timestamp?: string; post?: { id?: string; title?: string }; targetAgent?: string }) => ({
             id: a.id ?? `anom-${Date.now()}`,
             type: "pending_approval",
             reason: a.reason ?? "Needs review",
@@ -228,6 +360,8 @@ export default function AutopilotControlPanel() {
             detectedKeywords: a.detectedKeywords,
             timestamp: a.timestamp ? new Date(a.timestamp) : new Date(),
             status: "pending" as const,
+            post: a.post,
+            targetAgent: a.targetAgent,
           }))
         );
       }
@@ -254,7 +388,7 @@ export default function AutopilotControlPanel() {
   const triggerHeartbeat = async () => {
     setTriggering(true);
     try {
-      const res = await fetch("/api/moltbook/heartbeat", {
+      const res = await fetch("/api/executor/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode }),
@@ -271,7 +405,7 @@ export default function AutopilotControlPanel() {
     setMode(m);
     if (m === "off") setIsRunning(false);
     try {
-      await fetch("/api/moltbook/heartbeat", {
+      await fetch("/api/executor/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: m }),
@@ -284,7 +418,7 @@ export default function AutopilotControlPanel() {
 
   const handleAnomalyAction = async (id: string, action: "approve" | "deny") => {
     if (action === "approve") {
-      const res = await fetch("/api/decide/execute", {
+      const res = await fetch("/api/executor/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -337,7 +471,7 @@ export default function AutopilotControlPanel() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">Autopilot Control</h2>
+          <h2 className="text-xl font-bold text-white">Capability Profiles</h2>
           <p className="text-sm text-zinc-500">Autonomous engagement engine</p>
         </div>
         <div className="flex items-center gap-3">
@@ -372,12 +506,14 @@ export default function AutopilotControlPanel() {
       </div>
 
       <div className="p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
-        <h3 className="text-sm font-medium text-zinc-400 mb-3">AUTOPILOT MODE</h3>
-        <div className="flex gap-2">
+        <h3 className="text-sm font-medium text-zinc-400 mb-3">CAPABILITY PROFILE</h3>
+        <div className="flex flex-wrap gap-2">
           <ModeButton m="off" />
           <ModeButton m="conservative" />
           <ModeButton m="balanced" />
+          <ModeButton m="creator" />
           <ModeButton m="aggressive" />
+          <ModeButton m="full" />
         </div>
       </div>
 
@@ -455,45 +591,80 @@ export default function AutopilotControlPanel() {
             <h3 className="font-medium text-amber-400">Anomalies Detected ({pendingAnomalies.length})</h3>
           </div>
           <div className="space-y-3">
-            {pendingAnomalies.slice(0, 3).map((anomaly) => (
-              <div key={anomaly.id} className="p-3 bg-zinc-900/80 rounded-lg border border-zinc-800">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">{anomaly.actionType ?? "review"}</span>
-                    <p className="text-sm text-zinc-300 mt-1">{anomaly.reason}</p>
-                    {anomaly.detectedKeywords && anomaly.detectedKeywords.length > 0 && (
-                      <p className="text-xs text-zinc-500 mt-1">Keywords: {anomaly.detectedKeywords.join(", ")}</p>
+            {pendingAnomalies.slice(0, 3).map((anomaly) => {
+              const anomalyPostUrl = anomaly.post?.id ? MOLTBOOK_URLS.post(anomaly.post.id) : null;
+              const anomalyProfileUrl = anomaly.targetAgent ? MOLTBOOK_URLS.profile(anomaly.targetAgent) : null;
+              const anomalySubmoltUrl =
+                anomaly.actionType === "post" &&
+                anomaly.content &&
+                typeof anomaly.content === "object" &&
+                (anomaly.content as { submolt?: string }).submolt
+                  ? MOLTBOOK_URLS.submolt((anomaly.content as { submolt: string }).submolt)
+                  : null;
+              const viewSourceUrl = anomalyPostUrl ?? anomalyProfileUrl ?? anomalySubmoltUrl ?? null;
+              return (
+                <div key={anomaly.id} className="p-3 bg-zinc-900/80 rounded-lg border border-zinc-800">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">{anomaly.actionType ?? "review"}</span>
+                      <p className="text-sm text-zinc-300 mt-1">{anomaly.reason}</p>
+                      {anomaly.targetAgent && (
+                        <p className="text-xs text-zinc-500 mt-1">
+                          {anomalyProfileUrl ? (
+                            <a href={anomalyProfileUrl} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 hover:underline">
+                              @{anomaly.targetAgent}
+                            </a>
+                          ) : (
+                            `@${anomaly.targetAgent}`
+                          )}
+                        </p>
+                      )}
+                      {anomaly.detectedKeywords && anomaly.detectedKeywords.length > 0 && (
+                        <p className="text-xs text-zinc-500 mt-1">Keywords: {anomaly.detectedKeywords.join(", ")}</p>
+                      )}
+                    </div>
+                  </div>
+                  {anomaly.content != null ? (
+                    <p className="text-xs text-zinc-400 bg-zinc-800/50 p-2 rounded mb-2 italic">
+                      &quot;{typeof anomaly.content === "string" ? anomaly.content : (anomaly.content as { title?: string })?.title ?? ""}&quot;
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <button
+                      type="button"
+                      onClick={() => handleAnomalyAction(anomaly.id, "approve")}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded text-sm transition-colors"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAnomalyAction(anomaly.id, "deny")}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded text-sm transition-colors"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Deny
+                    </button>
+                    <Link href="/decide?filter=social" className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors inline-flex items-center gap-1 text-zinc-400" title="Open in Decide Inbox">
+                      <Eye className="w-4 h-4" />
+                    </Link>
+                    {viewSourceUrl && (
+                      <a
+                        href={viewSourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 rounded text-sm transition-colors inline-flex items-center gap-1 text-amber-400"
+                        title="View source on Moltbook"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        View on Moltbook
+                      </a>
                     )}
                   </div>
                 </div>
-                {anomaly.content != null ? (
-                  <p className="text-xs text-zinc-400 bg-zinc-800/50 p-2 rounded mb-2 italic">
-                    &quot;{typeof anomaly.content === "string" ? anomaly.content : (anomaly.content as { title?: string })?.title ?? ""}&quot;
-                  </p>
-                ) : null}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleAnomalyAction(anomaly.id, "approve")}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded text-sm transition-colors"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAnomalyAction(anomaly.id, "deny")}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded text-sm transition-colors"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Deny
-                  </button>
-                  <Link href="/decide?filter=social" className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors inline-flex items-center gap-1 text-zinc-400">
-                    <Eye className="w-4 h-4" />
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {pendingAnomalies.length > 3 && (
             <Link href="/decide?filter=social" className="block mt-3 text-sm text-amber-400 hover:text-amber-300">
@@ -523,7 +694,7 @@ export default function AutopilotControlPanel() {
         <div className="p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
           <h3 className="text-sm font-medium text-zinc-400 mb-3">GETTING STARTED</h3>
           <div className="space-y-2 text-sm text-zinc-500">
-            <p>1. Select a mode above to enable the autopilot</p>
+            <p>1. Select a capability profile above to enable the autopilot</p>
             <p>2. <strong className="text-zinc-400">Conservative</strong> — Safe start, only upvotes auto-execute</p>
             <p>3. <strong className="text-zinc-400">Balanced</strong> — Good for building karma, auto-follows high-engagement agents</p>
             <p>4. <strong className="text-zinc-400">Aggressive</strong> — Full autonomy, only anomalies need approval</p>

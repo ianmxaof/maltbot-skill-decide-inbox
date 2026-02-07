@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Send, Loader2, MessageSquare, AlertCircle, Key, Play, CheckCircle } from "lucide-react";
+import { Send, Loader2, MessageSquare, AlertCircle, Key, Play, CheckCircle, Inbox } from "lucide-react";
 
 /** Gateway not running / connection closed — show one-step fix */
 function isGatewayDownError(error: string): boolean {
@@ -47,6 +47,31 @@ export default function CommandPage() {
   const [result, setResult] = useState<{ success: boolean; stdout?: string; error?: string } | null>(null);
   const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus>("unknown");
   const [gatewayMsg, setGatewayMsg] = useState<string | null>(null);
+  const [sendingInboxTest, setSendingInboxTest] = useState(false);
+  const [inboxTestSent, setInboxTestSent] = useState(false);
+
+  const handleSendTestToInbox = async () => {
+    setSendingInboxTest(true);
+    setInboxTestSent(false);
+    try {
+      const res = await fetch("/api/moltbook/actions/propose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actionType: "post",
+          title: "Test post from Direct to Agent",
+          description: "Sample proposal to verify Decide Inbox flow",
+          reasoning: "You clicked Send test to Decide Inbox to confirm the inbox works.",
+          submolt: "general",
+          content: "This is a test post. Approve or ignore in Decide Inbox.",
+          riskLevel: "low",
+        }),
+      });
+      if (res.ok) setInboxTestSent(true);
+    } finally {
+      setSendingInboxTest(false);
+    }
+  };
 
   const handleCheckGateway = async () => {
     setGatewayStatus("starting");
@@ -183,9 +208,45 @@ export default function CommandPage() {
             {result.success ? "Agent Response" : "Error"}
           </h3>
           {result.success ? (
-            <pre className="whitespace-pre-wrap text-sm text-zinc-300 font-mono break-words max-h-96 overflow-y-auto">
-              {result.stdout || "(No output)"}
-            </pre>
+            <>
+              <pre className="whitespace-pre-wrap text-sm text-zinc-300 font-mono break-words max-h-96 overflow-y-auto">
+                {result.stdout || "(No output)"}
+              </pre>
+              <p className="mt-3 text-xs text-zinc-500">
+                Posting to Moltbook? Proposals appear in{" "}
+                <Link href="/decide?filter=social" className="text-amber-400 hover:underline">
+                  Decide Inbox (Social)
+                </Link>
+                . If nothing showed up, go to{" "}
+                <Link href="/settings#default-model" className="text-amber-400 hover:underline">
+                  Settings → Default Model
+                </Link>
+                {" "}and click <strong>Restart Gateway</strong> (or Start Gateway), then retry.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSendTestToInbox}
+                  disabled={sendingInboxTest}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 text-xs font-medium disabled:opacity-50"
+                >
+                  {sendingInboxTest ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Inbox className="w-3.5 h-3.5" />
+                  )}
+                  {inboxTestSent ? "Sent — check Decide Inbox" : "Send test to Decide Inbox"}
+                </button>
+                {inboxTestSent && (
+                  <Link
+                    href="/decide?filter=social"
+                    className="text-xs text-amber-400 hover:underline"
+                  >
+                    Open Decide Inbox →
+                  </Link>
+                )}
+              </div>
+            </>
           ) : (
             <>
               <pre className="text-sm text-rose-400 whitespace-pre-wrap break-words overflow-x-auto max-h-64 overflow-y-auto font-sans p-3 rounded bg-rose-950/30 border border-rose-900/50">

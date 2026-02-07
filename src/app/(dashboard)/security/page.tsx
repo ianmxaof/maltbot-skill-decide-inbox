@@ -3,6 +3,7 @@
 import { OpenClawStatusBlock } from "@/components/OpenClawStatusBlock";
 import { SecurityAgentRoster } from "@/components/SecurityAgentRoster";
 import SecurityDashboard from "@/components/security/SecurityDashboard";
+import GovernanceFingerprintBlock from "@/components/security/GovernanceFingerprintBlock";
 
 export default function SecurityPosturePage() {
   return (
@@ -18,6 +19,8 @@ export default function SecurityPosturePage() {
 
       <div className="space-y-8">
         <SecurityDashboard />
+
+        <GovernanceFingerprintBlock />
 
         <section>
           <h3 className="text-sm font-medium uppercase tracking-wider text-zinc-500 mb-4">

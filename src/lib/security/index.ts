@@ -44,6 +44,39 @@ export {
   type ApprovalLevel,
 } from "./security-middleware";
 
+export {
+  getOperationOverrides,
+  addOperationOverride,
+  removeOperationOverride,
+  loadOperationOverrides,
+  saveOperationOverrides,
+  resolveOverride,
+  type OperationOverride,
+} from "./operation-overrides";
+
+export {
+  getTrustScores,
+  recordSuccess,
+  recordFailure,
+  shouldAutoApprove,
+  computeWeightedScore,
+  loadTrustScores,
+  type TrustScoreEntry,
+} from "./trust-scoring";
+
+export {
+  analyzeAgentAction,
+  isActionRiskAnalysisEnabled,
+  type ActionRiskResult,
+  type RiskLevel,
+} from "./action-risk-analysis";
+
+export {
+  buildRiskReport,
+  maybeSendEventTriggeredAlert,
+  type RiskReportSummary,
+} from "./risk-report";
+
 /**
  * Initialize the complete security system
  */

@@ -232,32 +232,43 @@ export async function killProcessOnGatewayPort(): Promise<void> {
   });
 }
 
+/** Base URL for this app (propose endpoint); agent uses this to send proposals to Decide Inbox. */
+function getMaltbotBaseUrl(): string {
+  return process.env.MALTBOT_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+}
+
 /**
  * Start the OpenClaw Gateway as a detached background process (runs until stopped).
  * On Windows, uses VBScript to launch truly hidden (no console window).
  * On Unix, uses detached spawn.
+ * Passes MALTBOT_PROPOSE_URL and MALTBOT_BASE_URL so the Moltbook skill sends proposals to Decide Inbox.
  */
 export function startGateway(): { ok: true } | { ok: false; error: ApiError } {
   const bin = getCliPath();
   const port = getGatewayPort();
   const gatewayArgs = ["gateway", "--port", port];
   const isWin = process.platform === "win32";
+  const baseUrl = getMaltbotBaseUrl();
+  const proposeUrl = `${baseUrl.replace(/\/$/, "")}/api/moltbook/actions/propose`;
+  const gatewayEnv = {
+    ...process.env,
+    MALTBOT_PROPOSE_URL: proposeUrl,
+    MALTBOT_BASE_URL: baseUrl,
+  };
 
   try {
     if (isWin) {
       // Use VBScript to launch truly hidden on Windows.
-      // WScript.Shell.Run with 0 = hidden window, False = don't wait.
-      // This works even for .cmd/.bat wrappers that normally create console windows.
+      // Use cmd /c "set VAR=value & ..." so the gateway process gets MALTBOT_* and proposals go to Decide Inbox.
       const vbsPath = join(tmpdir(), `openclaw-gateway-${Date.now()}.vbs`);
-
-      // Build the command - escape double quotes for VBScript
-      const cmdEscaped = `"${bin}" gateway --port ${port}`.replace(/"/g, '""');
-
-      // VBScript content: run command hidden, don't wait
+      // In cmd, use set "VAR=value" so URLs with & are safe; & between set and next command
+      const proposeEsc = proposeUrl.replace(/"/g, '""');
+      const baseEsc = baseUrl.replace(/"/g, '""');
+      const cmdWithEnv = `cmd /c set "MALTBOT_PROPOSE_URL=${proposeEsc}" & set "MALTBOT_BASE_URL=${baseEsc}" & "${bin}" gateway --port ${port}`.replace(/"/g, '""');
       const vbsContent = `
 Set WshShell = CreateObject("WScript.Shell")
 WshShell.CurrentDirectory = "${process.cwd().replace(/\\/g, "\\\\").replace(/"/g, '""')}"
-WshShell.Run "${cmdEscaped}", 0, False
+WshShell.Run "${cmdWithEnv}", 0, False
 `;
 
       try {
@@ -294,13 +305,13 @@ WshShell.Run "${cmdEscaped}", 0, False
         child.unref();
       }
     } else {
-      // Unix: simple detached spawn
+      // Unix: simple detached spawn; pass MALTBOT_* so agent proposals go to Decide Inbox
       const useShell = needsShell(bin);
       const child = spawn(bin, gatewayArgs, {
         detached: true,
         stdio: "ignore",
         shell: useShell,
-        env: process.env,
+        env: gatewayEnv,
         cwd: process.cwd(),
       });
       child.unref();
@@ -700,7 +711,7 @@ A human approves in Decide Inbox; only approved actions run on Moltbook.
 `;
     const skillPath = join(targetDir, "SKILL.md");
     const existing = readFileSync(skillPath, "utf8");
-    const baseUrl = process.env.MALTBOT_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = getMaltbotBaseUrl();
     const withMaltbot = maltbotSection.replace("{{MALTBOT_URL}}", baseUrl);
     if (!existing.includes("Maltbot Integration")) {
       writeFileSync(skillPath, existing.trimEnd() + withMaltbot, "utf8");

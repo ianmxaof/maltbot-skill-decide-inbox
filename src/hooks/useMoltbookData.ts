@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { getRefreshIntervalMs, REFRESH_INTERVAL_CHANGED } from "@/lib/refresh-interval";
 import { mockDecideInbox } from "@/data/mock-dashboard";
 import {
   mockMoltbookAgent,
@@ -30,12 +31,21 @@ type MoltbookPendingRes = {
 
 type RosterAgent = { id: string; name: string; keyHint?: string; addedAt: string };
 
-export function useMoltbookData(selectedAgentId?: string | null) {
+export function useMoltbookData(selectedAgentId?: string | null, options?: { pausePolling?: boolean }) {
+  const pausePolling = options?.pausePolling ?? false;
   const [roster, setRoster] = useState<RosterAgent[]>([]);
   const [profile, setProfile] = useState<MoltbookProfileRes | null>(null);
   const [feed, setFeed] = useState<MoltbookFeedRes | null>(null);
   const [pending, setPending] = useState<MoltbookPendingRes | null>(null);
   const [loading, setLoading] = useState(true);
+  const [intervalMs, setIntervalMs] = useState(getRefreshIntervalMs);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const handler = () => setIntervalMs(getRefreshIntervalMs());
+    window.addEventListener(REFRESH_INTERVAL_CHANGED, handler);
+    return () => window.removeEventListener(REFRESH_INTERVAL_CHANGED, handler);
+  }, []);
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -64,9 +74,15 @@ export function useMoltbookData(selectedAgentId?: string | null) {
 
   useEffect(() => {
     refetch();
-    const t = setInterval(refetch, 60_000); // refresh every 60s
-    return () => clearInterval(t);
-  }, [refetch]);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    if (!pausePolling && intervalMs > 0) {
+      intervalRef.current = setInterval(refetch, intervalMs);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [refetch, pausePolling, intervalMs]);
 
   const isConfigured = profile?.configured ?? roster.length > 0;
   const mockSocialCount = mockDecideInbox.filter(

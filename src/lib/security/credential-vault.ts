@@ -31,6 +31,13 @@ export type CredentialPermission =
   | "openai:chat"
   | "anthropic:chat"
   | "google:chat"
+  | "google:oauth"
+  | "google:calendar"
+  | "google:drive"
+  | "google:gmail"
+  | "google:docs"
+  | "google:sheets"
+  | "google:slides"
   | "xai:chat"
   | "fleet:spawn"
   | "research:execute";

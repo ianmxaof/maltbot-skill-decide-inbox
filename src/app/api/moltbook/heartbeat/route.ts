@@ -12,6 +12,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { MoltbookClient } from "@/lib/moltbook";
 import { listAgents, getApiKeyForAgent } from "@/lib/agent-roster";
 import { addPending } from "@/lib/moltbook-pending";
+import { isSystemHalted } from "@/lib/system-state";
+import { recordSuccess, recordFailure } from "@/lib/security/trust-scoring";
+import { getOperatorId } from "@/lib/operator";
 import MoltbookAutopilot, {
   AutopilotConfig,
   AUTOPILOT_PRESETS,
@@ -28,6 +31,8 @@ type PersistedAutopilotState = {
   lastHeartbeat: number | null;
   nextHeartbeat: number | null;
   dailyStats: { date: string; posts: number; comments: number; upvotes: number; follows: number };
+  operatorId?: string;
+  visibility?: "private" | "semi_public" | "network_emergent";
 };
 
 async function loadAutopilotState(): Promise<void> {
@@ -35,7 +40,10 @@ async function loadAutopilotState(): Promise<void> {
     if (!existsSync(AUTOPILOT_STATE_PATH)) return;
     const raw = await readFile(AUTOPILOT_STATE_PATH, "utf-8");
     const data = JSON.parse(raw) as PersistedAutopilotState;
-    if (data.mode && ["off", "conservative", "balanced", "aggressive"].includes(data.mode)) {
+    if (
+      data.mode &&
+      ["off", "conservative", "balanced", "aggressive", "creator", "full"].includes(data.mode)
+    ) {
       currentMode = data.mode;
     }
     if (typeof data.lastHeartbeat === "number") lastHeartbeat = data.lastHeartbeat;
@@ -57,6 +65,8 @@ async function saveAutopilotState(): Promise<void> {
       lastHeartbeat,
       nextHeartbeat,
       dailyStats,
+      operatorId: getOperatorId(),
+      visibility: "private",
     };
     await writeFile(AUTOPILOT_STATE_PATH, JSON.stringify(data, null, 2), "utf-8");
   } catch (e) {
@@ -64,7 +74,7 @@ async function saveAutopilotState(): Promise<void> {
   }
 }
 
-type AutopilotMode = "off" | "conservative" | "balanced" | "aggressive";
+type AutopilotMode = "off" | "conservative" | "balanced" | "aggressive" | "creator" | "full";
 
 function getHeartbeatInterval(mode: AutopilotMode): number {
   switch (mode) {
@@ -73,7 +83,10 @@ function getHeartbeatInterval(mode: AutopilotMode): number {
     case "balanced":
       return 120;
     case "aggressive":
+    case "full":
       return 60;
+    case "creator":
+      return 90;
     default:
       return 0;
   }
@@ -89,7 +102,7 @@ const DEFAULT_PERSONALITY = {
 };
 
 function buildConfig(mode: AutopilotMode): AutopilotConfig {
-  const preset = AUTOPILOT_PRESETS[mode] ?? AUTOPILOT_PRESETS.balanced;
+  const preset = AUTOPILOT_PRESETS[mode] ?? AUTOPILOT_PRESETS.balanced ?? AUTOPILOT_PRESETS.creator;
   return {
     mode,
     heartbeatInterval: preset.heartbeatInterval ?? 120,
@@ -216,8 +229,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     await loadAutopilotState();
+
+    if (await isSystemHalted()) {
+      return NextResponse.json({ skipped: true, reason: "System halted" });
+    }
+
     const modeParam = body.mode as string | undefined;
-    if (modeParam && ["off", "conservative", "balanced", "aggressive"].includes(modeParam)) {
+    if (
+      modeParam &&
+      ["off", "conservative", "balanced", "aggressive", "creator", "full"].includes(modeParam)
+    ) {
       currentMode = modeParam as AutopilotMode;
       await saveAutopilotState();
     }
@@ -259,6 +280,24 @@ export async function POST(req: NextRequest) {
     });
 
     const result: HeartbeatResult = await autopilot.heartbeat();
+
+    if (!result.skipped && result.actions?.length) {
+      const opMap: Record<string, string> = {
+        upvote: "write:moltbook_upvote",
+        comment: "write:moltbook_comment",
+        follow: "write:moltbook_follow",
+        post: "write:moltbook_post",
+      };
+      for (const a of result.actions) {
+        const opKey = opMap[a.action] ?? `write:moltbook_${a.action}`;
+        const target = a.postId ?? a.agent ?? a.post ? String((a.post as { id?: string })?.id ?? "") : undefined;
+        if (a.success) {
+          recordSuccess(opKey, target, undefined, getOperatorId()).catch(() => {});
+        } else {
+          recordFailure(opKey, target, undefined, getOperatorId()).catch(() => {});
+        }
+      }
+    }
 
     if (!result.skipped && result.stats) {
       dailyStats = result.stats;

@@ -1,24 +1,17 @@
-import { SkillsList } from "@/components/skills/SkillsList";
+"use client";
 
-/** Skills from OpenClaw CLI. Install / uninstall from the UI. */
-export default function SkillsPage() {
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+/** Skills moved to Command Center → Installed Skills sub-tab. Redirect for backwards compatibility. */
+export default function SkillsRedirectPage() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/command-center?tab=installed_skills");
+  }, [router]);
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
-      <section className="mb-8">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-500">
-          Skill Marketplace
-        </h2>
-        <p className="mt-1 text-zinc-400">
-          Manage OpenClaw skills from the UI. <strong>Installed</strong> = skills ready to use.{" "}
-          <strong>Available</strong> = community skills from ClawHub (Moltbook, third-party).{" "}
-          <strong>Bundled</strong> = skills that ship with OpenClaw (48+). Moltbook wires to Maltbot for human-in-the-loop.
-        </p>
-        <p className="mt-2 text-xs text-zinc-500">
-          Wiring guide: <code className="bg-zinc-800 px-1 rounded">docs/MOLTBOOK-MALTBOT-WIRING.md</code>
-        </p>
-      </section>
-
-      <SkillsList />
+      <p className="text-sm text-zinc-500">Redirecting to Command Center → Installed Skills…</p>
     </main>
   );
 }

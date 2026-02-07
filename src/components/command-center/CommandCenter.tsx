@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Brain,
   Moon,
@@ -21,12 +22,15 @@ import {
   Search,
   TrendingUp,
   Globe,
+  Package,
 } from 'lucide-react';
+import { SkillsList } from '@/components/skills/SkillsList';
 
-const TAB_STYLES: Record<'consensus' | 'research' | 'skills' | 'fleet', string> = {
+const TAB_STYLES: Record<'consensus' | 'research' | 'skills' | 'installed_skills' | 'fleet', string> = {
   consensus: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
   research: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   skills: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  installed_skills: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
   fleet: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
 };
 
@@ -91,15 +95,27 @@ const MODEL_COLORS: Record<string, string> = {
   grok: '#EF4444',
 };
 
-const TABS: { id: 'consensus' | 'research' | 'skills' | 'fleet'; label: string; icon: React.ElementType }[] = [
+const TABS: { id: 'consensus' | 'research' | 'skills' | 'installed_skills' | 'fleet'; label: string; icon: React.ElementType }[] = [
   { id: 'consensus', label: 'Society of Minds', icon: Brain },
   { id: 'research', label: 'Overnight Research', icon: Moon },
   { id: 'skills', label: 'Skill Forge', icon: Hammer },
+  { id: 'installed_skills', label: 'Installed Skills', icon: Package },
   { id: 'fleet', label: 'Agent Fleet', icon: Server },
 ];
 
+const CC_TAB_IDS = new Set(['consensus', 'research', 'skills', 'installed_skills', 'fleet']);
+
 export default function CommandCenter() {
-  const [activeTab, setActiveTab] = useState<'consensus' | 'research' | 'skills' | 'fleet'>('consensus');
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'consensus' | 'research' | 'skills' | 'installed_skills' | 'fleet'>('consensus');
+
+  useEffect(() => {
+    if (tabFromUrl && CC_TAB_IDS.has(tabFromUrl as 'consensus' | 'research' | 'skills' | 'installed_skills' | 'fleet')) {
+      setActiveTab(tabFromUrl as 'consensus' | 'research' | 'skills' | 'installed_skills' | 'fleet');
+    }
+  }, [tabFromUrl]);
+
   const [consensusInput, setConsensusInput] = useState('');
   const [researchInput, setResearchInput] = useState('');
   const [activeSession, setActiveSession] = useState<ConsensusSession | null>(null);
@@ -384,7 +400,7 @@ export default function CommandCenter() {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
             Command Center
           </h1>
-          <p className="text-zinc-500 mt-1">Society of Minds • Overnight Research • Skill Forge • Agent Fleet</p>
+          <p className="text-zinc-500 mt-1">Society of Minds • Overnight Research • Skill Forge • Installed Skills • Agent Fleet</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 rounded-full">
@@ -667,6 +683,18 @@ export default function CommandCenter() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'installed_skills' && (
+            <div className="bg-zinc-900/50 rounded-xl border border-zinc-800 p-6">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold">Installed Skills</h2>
+                <p className="text-sm text-zinc-500 mt-1">
+                  Manage OpenClaw skills from the UI. Installed = ready to use. Available = ClawHub (Moltbook, third-party). Bundled = ship with OpenClaw.
+                </p>
+              </div>
+              <SkillsList />
             </div>
           )}
 

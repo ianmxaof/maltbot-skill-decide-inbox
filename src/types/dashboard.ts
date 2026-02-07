@@ -8,6 +8,10 @@ export type SignalFeedCard = {
   name: string;
   source: "github" | "reddit" | "x" | "rss" | "api" | "docs" | "moltbook";
   projectId?: string;
+  /** Governance layer: 1 = direct, 2 = collective, 3 = edge/synchronicity */
+  layer?: 1 | 2 | 3;
+  /** Optional source type for edge signals (e.g. "consensus" | "propagation" | "negative_space") */
+  sourceType?: string;
   /** Trend velocity / signal strength 0–100 */
   signalStrength: number;
   /** Last notable delta description */
@@ -26,11 +30,14 @@ export type DecideOption = {
   summary: string;
 };
 
+import type { Visibility } from "@/types/governance";
+
 type BaseDecideItem = {
   id: string;
   createdAt: string;
   riskLevel: "low" | "medium" | "high" | "critical";
   status: "pending" | "approved" | "ignored" | "deeper";
+  visibility?: Visibility;
 };
 
 export type ProjectDecision = BaseDecideItem & {
@@ -102,7 +109,16 @@ export type DevAction = BaseDecideItem & {
   };
 };
 
-export type DecideInboxItem = ProjectDecision | SocialAction | CICRAlert | DevAction;
+export type SignalReference = BaseDecideItem & {
+  category: "signal";
+  title: string;
+  url?: string;
+  summary?: string;
+  source: "moltbook" | "rss" | "github";
+  sourceId?: string;
+};
+
+export type DecideInboxItem = ProjectDecision | SocialAction | CICRAlert | DevAction | SignalReference;
 
 // --- Moltbook ---
 export type MoltbookAgent = {

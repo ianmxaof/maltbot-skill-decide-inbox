@@ -4,6 +4,14 @@
 import { getSanitizer } from "./content-sanitizer";
 import { getAnomalyDetector, AnomalyEvent, AnomalyType } from "./anomaly-detector";
 import { getVault, CredentialPermission } from "./credential-vault";
+import { isSystemHalted } from "@/lib/system-state";
+import { checkAwareness } from "@/lib/awareness";
+import type { AwarenessResult } from "@/types/governance";
+import { getActivityStore } from "@/lib/persistence";
+import { getOperatorId } from "@/lib/operator";
+import { loadOperationOverrides, resolveOverride } from "./operation-overrides";
+import { shouldAutoApprove } from "./trust-scoring";
+import { analyzeAgentAction, isActionRiskAnalysisEnabled } from "./action-risk-analysis";
 
 export interface SecurityContext {
   userId: string;
@@ -22,6 +30,8 @@ export interface SecurityCheckResult {
   anomalies: AnomalyEvent[];
   requiresApproval: boolean;
   approvalLevel: ApprovalLevel;
+  /** Result of awareness check (governance); attach to pending items when routing to Decide. */
+  awarenessResult?: AwarenessResult;
 }
 
 export type ApprovalLevel = 0 | 1 | 2 | 3;
@@ -87,11 +97,30 @@ export class SecurityMiddleware {
   private sanitizer = getSanitizer(true);
   private detector = getAnomalyDetector();
   private pendingApprovals: Map<string, PendingApproval> = new Map();
+  /** Pending item id -> approvedBy (caller who may execute). Set by approve API or at execute time. */
+  private executionApprovals: Map<string, string> = new Map();
   private auditLog: AuditEntry[] = [];
   private onSecurityEvent?: (event: SecurityEvent) => void;
 
   constructor(onSecurityEvent?: (event: SecurityEvent) => void) {
     this.onSecurityEvent = onSecurityEvent;
+  }
+
+  /** Record that pendingId was approved for execution by approvedBy (e.g. from approve API or execute body). */
+  recordExecutionApproval(pendingId: string, approvedBy: string): void {
+    if (pendingId && approvedBy?.trim()) {
+      this.executionApprovals.set(pendingId, approvedBy.trim());
+    }
+  }
+
+  /** Return true if pendingId may be executed by callerId (has prior approval record or one-step execute with callerId). */
+  isPendingApprovedForExecution(pendingId: string, callerId: string): boolean {
+    const id = pendingId?.trim();
+    const caller = callerId?.trim();
+    if (!id || !caller) return false;
+    const recorded = this.executionApprovals.get(id);
+    if (recorded !== undefined) return recorded === caller;
+    return true; // one-step: no prior record; allow if caller identified (dashboard sends approvedBy)
   }
 
   /**
@@ -108,6 +137,13 @@ export class SecurityMiddleware {
       requiresApproval: false,
       approvalLevel: 0,
     };
+
+    // MET switch: when system is halted, nothing autonomous runs
+    if (await isSystemHalted()) {
+      checkResult.allowed = false;
+      checkResult.reason = "System halted; no autonomous execution until resumed by human.";
+      return checkResult;
+    }
 
     // Check if detector has paused execution
     if (this.detector.isPausedState()) {
@@ -127,10 +163,87 @@ export class SecurityMiddleware {
       return checkResult;
     }
 
+    // Awareness check (governance): existential "should this happen at all" / "does this need human"
+    const awarenessResult = await checkAwareness({
+      operation: operationKey,
+      source: context.source,
+      metadata: operation.metadata,
+    });
+    checkResult.awarenessResult = awarenessResult;
+    if (!awarenessResult.allowed) {
+      checkResult.allowed = false;
+      checkResult.reason = awarenessResult.reason ?? "Awareness check disallowed";
+      return checkResult;
+    }
+    if (awarenessResult.requiresHuman) {
+      checkResult.requiresApproval = true;
+    }
+
     // Get approval level
-    const approvalLevel = OPERATION_APPROVAL_LEVELS[operationKey] ?? 2;
+    let approvalLevel = OPERATION_APPROVAL_LEVELS[operationKey] ?? 2;
     checkResult.approvalLevel = approvalLevel;
     checkResult.requiresApproval = approvalLevel >= 2;
+
+    // Per-operation overrides (allow / block / ask)
+    const overridesList = await loadOperationOverrides();
+    const override = resolveOverride(
+      overridesList,
+      operationKey,
+      operation.target,
+      context.agentId
+    );
+    if (override) {
+      if (override.action === "block") {
+        checkResult.allowed = false;
+        checkResult.reason = override.reason ?? `Operation "${operationKey}" blocked by override`;
+        this.logAudit("blocked", operation, context, checkResult.reason);
+        return checkResult;
+      }
+      if (override.action === "allow") {
+        checkResult.requiresApproval = false;
+      } else if (override.action === "ask") {
+        checkResult.requiresApproval = true;
+      }
+    }
+
+    // Trust scoring: auto-approve if weighted score >= threshold and no recent failure
+    if (checkResult.requiresApproval) {
+      try {
+        const autoApprove = await shouldAutoApprove(
+          operationKey,
+          operation.target,
+          context.agentId
+        );
+        if (autoApprove) {
+          checkResult.requiresApproval = false;
+        }
+      } catch {
+        // keep requiresApproval as-is on error
+      }
+    }
+
+    // LLM risk analysis (optional): when content present and still requires approval
+    if (
+      checkResult.requiresApproval &&
+      operation.content?.trim() &&
+      isActionRiskAnalysisEnabled()
+    ) {
+      try {
+        const risk = await analyzeAgentAction(operation.content);
+        if (risk.requiresApproval) {
+          checkResult.requiresApproval = true;
+        }
+        if (risk.reasoning && checkResult.warnings) {
+          checkResult.warnings.push(`Risk: ${risk.reasoning}`);
+        }
+        if (risk.riskLevel === "critical") {
+          checkResult.allowed = false;
+          checkResult.reason = risk.reasoning ?? "LLM risk analysis: critical risk";
+        }
+      } catch {
+        // keep as-is on error
+      }
+    }
 
     // Check content if present
     if (operation.content) {
@@ -435,6 +548,35 @@ export class SecurityMiddleware {
 
     if (this.auditLog.length > 10000) {
       this.auditLog = this.auditLog.slice(-10000);
+    }
+
+    // Persist typed entries for learning loop and reports
+    const opKey = `${operation.category}:${operation.action}`;
+    const target = operation.target ?? "";
+    const ts = entry.timestamp.toISOString();
+    const operatorId = context.userId && context.userId !== "anonymous" ? context.userId : getOperatorId();
+    if (result === "blocked" || result === "denied") {
+      getActivityStore()
+        .append({
+          type: "operation_blocked",
+          timestamp: ts,
+          operation: opKey,
+          target,
+          reason: reason ?? result,
+          operatorId,
+        })
+        .catch(() => {});
+    } else if (result === "approved") {
+      getActivityStore()
+        .append({
+          type: "operation_approved",
+          timestamp: ts,
+          operation: opKey,
+          target,
+          approvedBy: context.userId,
+          operatorId,
+        })
+        .catch(() => {});
     }
   }
 

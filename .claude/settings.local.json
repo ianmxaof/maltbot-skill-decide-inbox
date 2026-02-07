@@ -4,7 +4,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx eslint:*)",
       "Bash(Select-Object FullName)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(ls -la \"C:\\\\Powercore-repo-main\\\\context-hub\\\\src\\\\app\\\\api\\\\security\"\" 2>/dev/null || echo \"Directory not found \")"
     ]
   }
 }

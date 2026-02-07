@@ -1,6 +1,9 @@
 // src/lib/security/anomaly-detector.ts
 // Real-time Anomaly Detection Engine for Agent Behavior
 
+import { getActivityStore } from "@/lib/persistence";
+import { getOperatorId } from "@/lib/operator";
+
 export interface AnomalyEvent {
   id: string;
   timestamp: Date;
@@ -178,6 +181,16 @@ export class AnomalyDetector {
     }
 
     if (recentCount > baselineRate * this.config.rateSpikeTolerance) {
+      getActivityStore()
+        .append({
+          type: "rate_spike",
+          timestamp: new Date().toISOString(),
+          metric: activityType,
+          value: recentCount,
+          baseline: baselineRate,
+          operatorId: getOperatorId(),
+        })
+        .catch(() => {});
       return this.createAnomaly(
         'rate_spike',
         'warning',
@@ -397,6 +410,17 @@ export class AnomalyDetector {
     };
 
     this.events.push(event);
+
+    // Persist typed entry for learning loop and reports
+    getActivityStore()
+      .append({
+        type: "anomaly_detected",
+        timestamp: event.timestamp.toISOString(),
+        anomalyType: type,
+        severity,
+        operatorId: getOperatorId(),
+      })
+      .catch(() => {});
 
     // Auto-pause on emergency
     if (severity === 'emergency' && this.config.autoPause) {

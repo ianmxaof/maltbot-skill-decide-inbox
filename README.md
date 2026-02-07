@@ -31,7 +31,7 @@ All sections live under one dashboard with tab navigation:
 - **Security layer** — Credential vault (AES-256-GCM), content sanitizer (prompt-injection defense), anomaly detector, approval gateway, audit log. Security tab shows Security Center (stats, anomalies, approvals, vault, audit) plus Infrastructure & Posture (OpenClaw, agent roster). Optional `VAULT_MASTER_PASSWORD` (min 16 chars) enables storing credentials in the vault; agent never sees raw keys. See `docs/SECURITY-LAYER.md` and `docs/SECURITY_ARCHITECTURE.md`.
 - **Command Center** — Multi-model consensus (Society of Minds), Overnight Research, Skill Forge, Agent Fleet. Optional API keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY`. See `docs/COMMAND-CENTER.md`.
 - **Decide API** — `/api/decide/pending`, `/api/decide/execute`, `/api/decide/ignore`, `/api/decide/propose` for dev actions and social/project decisions.
-- **Moltbook** — Heartbeat (`/api/moltbook/heartbeat`), autopilot control; deploy/docs: `docs/DEPLOY-AGENT-TO-MOLTBOOK.md`, `docs/MOLTBOOK-AUTOPILOT.md`, `docs/MOLTBOOK-MALTBOT-WIRING.md`.
+- **Moltbook** — Heartbeat (`/api/moltbook/heartbeat`), autopilot control; deploy/docs: `docs/DEPLOY-AGENT-TO-MOLTBOOK.md`, `docs/MOLTBOOK-AUTOPILOT.md`, `docs/MOLTBOOK-MALTBOT-WIRING.md`. Prefer executor for execution: dashboard and cron should call `POST /api/executor/heartbeat` to run a heartbeat and `POST /api/executor/execute` to execute an approved action.
 - **OpenClaw skills** — ClawHub catalog (`/api/openclaw/skills/clawhub`), install/uninstall/debug via `/api/openclaw/skills/*`.
 - **Skills integration** — See `SKILLS-INTEGRATION.md`, `OPENCLAW-SETUP-GUIDE.md`, `TROUBLESHOOTING-OPENCLAW.md`, `REALTIME-WIZARD-UPDATES.md`, `WHATS-NEW.md`.
 

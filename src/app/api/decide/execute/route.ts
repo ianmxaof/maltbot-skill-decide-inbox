@@ -18,6 +18,12 @@ import {
   isConfigured,
 } from "@/lib/moltbook";
 import { getApiKeyForAgent, listAgents } from "@/lib/agent-roster";
+import { appendProvenance } from "@/lib/decision-provenance";
+import { recordOutcomesForDecision } from "@/lib/signal-outcomes";
+import { runBeforeToolExecution } from "@/lib/agent-lifecycle-hooks";
+import { getSecurityMiddleware } from "@/lib/security/security-middleware";
+import { recordSuccess, recordFailure } from "@/lib/security/trust-scoring";
+import { getOperatorId } from "@/lib/operator";
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,6 +39,31 @@ export async function POST(req: NextRequest) {
       markApprovedDev(id);
       return NextResponse.json({ success: true, message: "Dev action approved (execution deferred)" });
     }
+
+    // Lifecycle: authorize execution (caller must be identified; optional session check later)
+    const callerId =
+      (typeof body.approvedBy === "string" ? body.approvedBy.trim() : null) ??
+      req.headers.get("x-caller-id")?.trim() ??
+      "";
+    const hookResult = await runBeforeToolExecution({
+      pendingId: id,
+      callerId,
+      operation: { category: "write", action: "execute_pending", target: id },
+      securityContext: {
+        userId: callerId || "anonymous",
+        agentId: "",
+        sessionId: "",
+        source: "api",
+      },
+    });
+    if (hookResult.shortCircuit && !hookResult.allowed) {
+      return NextResponse.json(
+        { success: false, error: hookResult.reason ?? "Execution not authorized" },
+        { status: 403 }
+      );
+    }
+
+    getSecurityMiddleware().recordExecutionApproval(id, callerId);
 
     // Social action: execute via Moltbook API
     const roster = await listAgents();
@@ -119,9 +150,46 @@ export async function POST(req: NextRequest) {
 
     if (result.success) {
       await remove(id);
+      const approvedBy = (body.approvedBy as string) || "dashboard";
+      await appendProvenance({
+        decisionId: id,
+        triggeredBy: [],
+        awarenessResult: { allowed: true },
+        operatorId: getOperatorId(),
+        visibility: "private",
+        humanApproval: { approvedBy, timestamp: new Date().toISOString() },
+        executionResult: { success: true, outcome: "executed" },
+      });
+      await recordOutcomesForDecision(id, "followed", [], "unknown");
+      const opKey =
+        payload.type === "create_submolt"
+          ? "write:moltbook_post"
+          : `write:moltbook_${payload.type}`;
+      const target =
+        payload.type === "comment"
+          ? payload.postId
+          : payload.type === "follow"
+            ? payload.agentName ?? item.targetAgent
+            : payload.type === "post" || payload.type === "create_submolt"
+              ? payload.submolt ?? payload.name
+              : undefined;
+      await recordSuccess(opKey, target, payload.rosterAgentId ?? undefined, getOperatorId()).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
+    const opKey =
+      payload.type === "create_submolt"
+        ? "write:moltbook_post"
+        : `write:moltbook_${payload.type}`;
+    const target =
+      payload.type === "comment"
+        ? payload.postId
+        : payload.type === "follow"
+          ? payload.agentName ?? item.targetAgent
+          : payload.type === "post" || payload.type === "create_submolt"
+            ? payload.submolt ?? payload.name
+            : undefined;
+    await recordFailure(opKey, target, payload.rosterAgentId ?? undefined, getOperatorId()).catch(() => {});
     return NextResponse.json({ success: false, error: result.error }, { status: 502 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Execute failed";

@@ -9,8 +9,16 @@ import { MoltbookClient } from "@/lib/moltbook";
 // CONFIGURATION
 // ============================================================================
 
+export type CapabilityProfileMode =
+  | "off"
+  | "conservative"   // reader: upvotes only
+  | "balanced"       // engager: upvotes + follows
+  | "creator"        // comments auto, posts require review
+  | "aggressive"     // (legacy) comments + posts auto
+  | "full";          // truly autonomous: everything auto
+
 export interface AutopilotConfig {
-  mode: "off" | "conservative" | "balanced" | "aggressive";
+  mode: CapabilityProfileMode;
 
   // Heartbeat intervals (in minutes)
   heartbeatInterval: number;
@@ -81,6 +89,38 @@ export const AUTOPILOT_PRESETS: Record<string, Partial<AutopilotConfig>> = {
 
   aggressive: {
     mode: "aggressive",
+    heartbeatInterval: 60,
+    postInterval: 120,
+    commentInterval: 15,
+    autoApproveUpvotes: true,
+    autoApproveFollows: true,
+    followKarmaThreshold: 50,
+    autoApproveComments: true,
+    autoApprovePosts: true,
+    maxDailyPosts: 12,
+    maxDailyComments: 48,
+    maxDailyFollows: 30,
+  },
+
+  // Capability profile: comments auto-approved, posts require review (safer default)
+  creator: {
+    mode: "creator",
+    heartbeatInterval: 90,
+    postInterval: 240,
+    commentInterval: 20,
+    autoApproveUpvotes: true,
+    autoApproveFollows: true,
+    followKarmaThreshold: 80,
+    autoApproveComments: true,
+    autoApprovePosts: false,
+    maxDailyPosts: 6,
+    maxDailyComments: 36,
+    maxDailyFollows: 20,
+  },
+
+  // Capability profile: truly autonomous (everything auto-approved including posts)
+  full: {
+    mode: "full",
     heartbeatInterval: 60,
     postInterval: 120,
     commentInterval: 15,

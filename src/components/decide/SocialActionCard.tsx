@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { Check, X, MessageSquare, Users } from "lucide-react";
+import { Check, X, MessageSquare, Users, ExternalLink } from "lucide-react";
+import { MOLTBOOK_URLS } from "@/lib/moltbook-urls";
 import type { SocialAction } from "@/types/dashboard";
 
 const riskColors: Record<SocialAction["riskLevel"], string> = {
@@ -20,6 +21,15 @@ const actionTypeIcons: Record<SocialAction["actionType"], typeof MessageSquare> 
   dm: MessageSquare,
 };
 
+function getMoltbookSourceUrl(item: SocialAction): string | null {
+  const p = item.moltbookPayload;
+  if (!p) return null;
+  if (p.type === "comment" && p.postId) return MOLTBOOK_URLS.post(p.postId);
+  if (p.type === "follow" && (p.agentName ?? item.targetAgent)) return MOLTBOOK_URLS.profile(p.agentName ?? item.targetAgent ?? "");
+  if ((p.type === "post" || p.type === "create_submolt") && (p.submolt ?? p.name)) return MOLTBOOK_URLS.submolt(p.submolt ?? p.name ?? "");
+  return null;
+}
+
 export function SocialActionCard({
   item,
   onAct,
@@ -31,6 +41,7 @@ export function SocialActionCard({
 }) {
   const [focused, setFocused] = useState(false);
   const Icon = actionTypeIcons[item.actionType];
+  const viewSourceUrl = getMoltbookSourceUrl(item);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent, action: "ignore" | "approve" | "deeper") => {
@@ -88,7 +99,7 @@ export function SocialActionCard({
         </ul>
       </div>
 
-      <div className="flex gap-2 pt-4 border-t border-zinc-800">
+      <div className="flex flex-wrap gap-2 pt-4 border-t border-zinc-800 items-center">
         <button
           type="button"
           onClick={() => onAct(item.id, "approve")}
@@ -124,6 +135,18 @@ export function SocialActionCard({
         >
           Ask Why
         </button>
+        {viewSourceUrl && (
+          <a
+            href={viewSourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-3 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg transition-colors inline-flex items-center gap-2 text-amber-400"
+            title="View source on Moltbook"
+          >
+            <ExternalLink className="w-4 h-4" />
+            View on Moltbook
+          </a>
+        )}
       </div>
     </li>
   );

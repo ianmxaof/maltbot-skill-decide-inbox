@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ApiKeysPanel, ModelPanel } from "@/components/settings";
+import { ApiKeysPanel, ModelPanel, IdentityPanel, SoulPanel, MemoryPanel, ScheduledTasksPanel, GoogleOAuthPanel, RefreshIntervalPanel, SignalsRssPanel, SignalsGitHubPanel } from "@/components/settings";
 
 export default function SettingsPage() {
   return (
@@ -11,19 +11,58 @@ export default function SettingsPage() {
           Settings
         </h2>
         <p className="mt-1 text-zinc-400">
-          OpenClaw configuration — change API keys, model, and channels without re-onboarding.
+          OpenClaw configuration — change API keys, model, identity, and personality without re-onboarding.
         </p>
       </section>
 
       <div className="space-y-8">
         <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+          <h3 className="text-sm font-semibold text-white mb-4">Feed auto-refresh</h3>
+          <RefreshIntervalPanel />
+        </section>
+
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+          <h3 className="text-sm font-semibold text-white mb-4">Signals / RSS</h3>
+          <SignalsRssPanel />
+        </section>
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+          <h3 className="text-sm font-semibold text-white mb-4">Signals / GitHub</h3>
+          <SignalsGitHubPanel />
+        </section>
+
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
           <h3 className="text-sm font-semibold text-white mb-4">API Keys</h3>
           <ApiKeysPanel />
         </section>
 
-        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+        <section id="default-model" className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
           <h3 className="text-sm font-semibold text-white mb-4">Default Model</h3>
           <ModelPanel />
+        </section>
+
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+          <h3 className="text-sm font-semibold text-white mb-4">Identity</h3>
+          <IdentityPanel />
+        </section>
+
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+          <h3 className="text-sm font-semibold text-white mb-4">Soul (Personality & Voice)</h3>
+          <SoulPanel />
+        </section>
+
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+          <h3 className="text-sm font-semibold text-white mb-4">Memory</h3>
+          <MemoryPanel />
+        </section>
+
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+          <h3 className="text-sm font-semibold text-white mb-4">Scheduled Tasks</h3>
+          <ScheduledTasksPanel />
+        </section>
+
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+          <h3 className="text-sm font-semibold text-white mb-4">Google Workspace</h3>
+          <GoogleOAuthPanel />
         </section>
       </div>
 

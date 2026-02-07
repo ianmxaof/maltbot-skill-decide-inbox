@@ -3,19 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDecideInboxData } from "@/hooks/useDecideInboxData";
+import { Settings } from "lucide-react";
 
 const TABS = [
   { href: "/", label: "Context Hub", short: "Context" },
   { href: "/command", label: "Direct to Agent", short: "Command" },
-  { href: "/feeds", label: "Signal Feeds", short: "Feeds" },
   { href: "/decide", label: "Decide Inbox", short: "Decide", badgeKey: "decide" as const },
+  { href: "/moltbook", label: "Moltbook", short: "Moltbook" },
   { href: "/security", label: "Security", short: "Security" },
-  { href: "/timeline", label: "Agent Timeline", short: "Timeline" },
-  { href: "/radar", label: "CI/CR Radar", short: "Radar" },
-  { href: "/skills", label: "Skills", short: "Skills" },
-  { href: "/moltbook", label: "Moltbook Hub", short: "Moltbook" },
   { href: "/command-center", label: "Command Center", short: "CC" },
-  { href: "/settings", label: "Settings", short: "Settings" },
 ] as const;
 
 export function DashboardTabs() {
@@ -24,9 +20,10 @@ export function DashboardTabs() {
 
   const isProjectDetail = pathname.startsWith("/projects/");
   const activeHref = isProjectDetail ? "/" : pathname;
+  const isSettings = pathname.startsWith("/settings");
 
   return (
-    <nav className="flex gap-1 border-b border-zinc-800 bg-zinc-900/50 px-4" aria-label="Dashboard sections">
+    <nav className="flex items-center gap-1 border-b border-zinc-800 bg-zinc-900/50 px-4" aria-label="Dashboard sections">
       {TABS.map((tab) => {
         const { href, label, short } = tab;
         const badgeKey = "badgeKey" in tab ? tab.badgeKey : undefined;
@@ -55,6 +52,16 @@ export function DashboardTabs() {
           </Link>
         );
       })}
+      <Link
+        href="/settings"
+        className={`ml-auto rounded-t p-2.5 text-sm transition ${
+          isSettings ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+        }`}
+        title="Settings"
+        aria-label="Settings"
+      >
+        <Settings className="w-4 h-4" />
+      </Link>
     </nav>
   );
 }

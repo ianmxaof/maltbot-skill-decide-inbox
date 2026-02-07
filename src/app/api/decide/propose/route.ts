@@ -3,23 +3,15 @@
  * Unified propose API. Routes by category:
  * - social -> moltbook-pending (existing flow)
  * - dev -> decide-pending (projectId required)
+ * - signal -> signal-pending (Send to inbox from Signals panel)
  *
- * Body: {
- *   category: "social" | "dev",
- *   actionType: string,
- *   title: string,
- *   description: string,
- *   reasoning: string,
- *   implications?: string[],
- *   riskLevel?: "low" | "medium" | "high" | "critical",
- *   projectId?: string,  // required for category: "dev"
- *   ...payload
- * }
+ * Body for signal: { category: "signal", title, url?, summary?, source: "moltbook" | "rss" | "github", sourceId? }
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { addPending } from "@/lib/moltbook-pending";
 import { addPendingDev } from "@/lib/decide-pending";
+import { addPendingSignal } from "@/lib/signal-pending";
 
 const DEV_ACTION_TYPES = [
   "add_dependency",
@@ -138,8 +130,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, id: item.id });
     }
 
+    if (category === "signal") {
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      if (!title) {
+        return NextResponse.json(
+          { success: false, error: "title required for signal" },
+          { status: 400 }
+        );
+      }
+      const source = body.source as string;
+      if (source !== "moltbook" && source !== "rss" && source !== "github") {
+        return NextResponse.json(
+          { success: false, error: 'source must be "moltbook", "rss", or "github"' },
+          { status: 400 }
+        );
+      }
+      const item = await addPendingSignal({
+        title,
+        url: typeof body.url === "string" ? body.url : undefined,
+        summary: typeof body.summary === "string" ? body.summary : undefined,
+        source: source as "moltbook" | "rss" | "github",
+        sourceId: typeof body.sourceId === "string" ? body.sourceId : undefined,
+      });
+      return NextResponse.json({ success: true, id: item.id });
+    }
+
     return NextResponse.json(
-      { success: false, error: `Unknown category: ${category}. Use "social" or "dev".` },
+      { success: false, error: `Unknown category: ${category}. Use "social", "dev", or "signal".` },
       { status: 400 }
     );
   } catch (err) {

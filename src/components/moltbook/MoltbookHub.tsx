@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Globe, Zap, Shield, Users, Rocket } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { Globe, Zap, Shield, Users, Rocket, Rss } from "lucide-react";
 import { useMoltbookData } from "@/hooks/useMoltbookData";
 import { AgentStatusBar } from "./widgets/AgentStatusBar";
 import { AgentRosterPanel } from "./AgentRosterPanel";
@@ -9,10 +10,12 @@ import { OverviewPanel } from "./panels/OverviewPanel";
 import { SignalsPanel } from "./panels/SignalsPanel";
 import { SecurityPanel } from "./panels/SecurityPanel";
 import { NetworkPanel } from "./panels/NetworkPanel";
+import { FeedPanel } from "./panels/FeedPanel";
 import AutopilotControlPanel from "./AutopilotControlPanel";
 
 const SUB_TABS = [
   { id: "overview", label: "Overview", icon: Globe },
+  { id: "feed", label: "Signals", icon: Rss },
   { id: "signals", label: "Intelligence", icon: Zap },
   { id: "security", label: "Social Security", icon: Shield },
   { id: "network", label: "Network", icon: Users },
@@ -21,8 +24,18 @@ const SUB_TABS = [
 
 type SubTabId = (typeof SUB_TABS)[number]["id"];
 
+const VALID_TAB_IDS = new Set(SUB_TABS.map((t) => t.id));
+
 export function MoltbookHub() {
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<SubTabId>("overview");
+
+  useEffect(() => {
+    if (tabFromUrl && VALID_TAB_IDS.has(tabFromUrl as SubTabId)) {
+      setActiveTab(tabFromUrl as SubTabId);
+    }
+  }, [tabFromUrl]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const { roster, agent, signals, exposure, anomalies, socialPendingCount, isConfigured, error: profileError, hint: profileHint, refetch } = useMoltbookData(selectedAgentId);
@@ -82,6 +95,7 @@ export function MoltbookHub() {
           profileHint={profileHint ?? undefined}
         />
       )}
+      {activeTab === "feed" && <FeedPanel />}
       {activeTab === "signals" && <SignalsPanel signals={signals} />}
       {activeTab === "security" && <SecurityPanel exposure={exposure} anomalies={anomalies} />}
       {activeTab === "network" && <NetworkPanel agent={agent} />}
