@@ -24,6 +24,10 @@ import { runBeforeToolExecution } from "@/lib/agent-lifecycle-hooks";
 import { getSecurityMiddleware } from "@/lib/security/security-middleware";
 import { recordSuccess, recordFailure } from "@/lib/security/trust-scoring";
 import { getOperatorId } from "@/lib/operator";
+import { getActivePairId } from "@/lib/agent-pair-store";
+import { recordAction } from "@/lib/agent-pair-store";
+import { appendActivity } from "@/lib/activity-feed-store";
+import { projectDecisionToFeed } from "@/lib/social-store";
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,6 +41,19 @@ export async function POST(req: NextRequest) {
     const devItem = getPendingDev(id);
     if (devItem) {
       markApprovedDev(id);
+      const activePairId = await getActivePairId();
+      await appendActivity({
+        id: `act-${Date.now()}`,
+        pairId: activePairId,
+        timestamp: new Date().toISOString(),
+        action: devItem.title ?? id,
+        reasoning: devItem.reasoning ?? "",
+        outcome: "kept",
+        tags: ["decide-inbox", "approved"],
+      }).catch(() => {});
+      await recordAction(activePairId, devItem.title ?? id, "kept", devItem.reasoning).catch(() => {});
+      // Project to social feed
+      await projectDecisionToFeed(activePairId, "approve", devItem.title ?? id, id).catch(() => {});
       return NextResponse.json({ success: true, message: "Dev action approved (execution deferred)" });
     }
 
@@ -150,6 +167,18 @@ export async function POST(req: NextRequest) {
 
     if (result.success) {
       await remove(id);
+      const activePairId = await getActivePairId();
+      await appendActivity({
+        id: `act-${Date.now()}`,
+        pairId: activePairId,
+        timestamp: new Date().toISOString(),
+        action: item.title ?? id,
+        reasoning: item.reasoning ?? "",
+        outcome: "kept",
+        tags: ["decide-inbox", "executed"],
+      }).catch(() => {});
+      await recordAction(activePairId, item.title ?? id, "kept", item.reasoning).catch(() => {});
+
       const approvedBy = (body.approvedBy as string) || "dashboard";
       await appendProvenance({
         decisionId: id,
@@ -174,6 +203,8 @@ export async function POST(req: NextRequest) {
               ? payload.submolt ?? payload.name
               : undefined;
       await recordSuccess(opKey, target, payload.rosterAgentId ?? undefined, getOperatorId()).catch(() => {});
+      // Project to social feed
+      await projectDecisionToFeed(activePairId, "approve", item.title ?? id, id).catch(() => {});
       return NextResponse.json({ success: true });
     }
 

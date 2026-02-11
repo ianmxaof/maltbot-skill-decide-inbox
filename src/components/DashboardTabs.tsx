@@ -6,9 +6,16 @@ import { useDecideInboxData } from "@/hooks/useDecideInboxData";
 import { Settings } from "lucide-react";
 
 const TABS = [
-  { href: "/", label: "Context Hub", short: "Context" },
+  { href: "/home", label: "Dashboard", short: "Home" },
   { href: "/command", label: "Direct to Agent", short: "Command" },
   { href: "/decide", label: "Decide Inbox", short: "Decide", badgeKey: "decide" as const },
+  { href: "/network", label: "Network", short: "Network" },
+  { href: "/network/discover", label: "Discover", short: "Discover" },
+  { href: "/network/pulse", label: "Pulse", short: "Pulse" },
+  { href: "/network/groups", label: "Groups", short: "Groups" },
+  { href: "/network/signals", label: "Signals", short: "Signals" },
+  { href: "/activity", label: "Activity", short: "Activity" },
+  { href: "/workers", label: "Workers", short: "Workers" },
   { href: "/moltbook", label: "Moltbook", short: "Moltbook" },
   { href: "/security", label: "Security", short: "Security" },
   { href: "/command-center", label: "Command Center", short: "CC" },
@@ -19,7 +26,7 @@ export function DashboardTabs() {
   const { pendingCount } = useDecideInboxData();
 
   const isProjectDetail = pathname.startsWith("/projects/");
-  const activeHref = isProjectDetail ? "/" : pathname;
+  const activeHref = isProjectDetail ? "/home" : pathname;
   const isSettings = pathname.startsWith("/settings");
 
   return (
@@ -27,7 +34,11 @@ export function DashboardTabs() {
       {TABS.map((tab) => {
         const { href, label, short } = tab;
         const badgeKey = "badgeKey" in tab ? tab.badgeKey : undefined;
-        const isActive = href === "/" ? activeHref === "/" || isProjectDetail : pathname.startsWith(href);
+        const isActive = href === "/home"
+          ? activeHref === "/home" || isProjectDetail
+          : href === "/network"
+            ? pathname === "/network"
+            : pathname.startsWith(href);
         const badge = badgeKey === "decide" && pendingCount > 0 ? pendingCount : null;
         return (
           <Link

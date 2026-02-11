@@ -15,6 +15,8 @@ import { addPending } from "@/lib/moltbook-pending";
 import { isSystemHalted } from "@/lib/system-state";
 import { recordSuccess, recordFailure } from "@/lib/security/trust-scoring";
 import { getOperatorId } from "@/lib/operator";
+import { getActivePairId } from "@/lib/agent-pair-store";
+import { runHeartbeat } from "@/lib/heartbeat-runner";
 import MoltbookAutopilot, {
   AutopilotConfig,
   AUTOPILOT_PRESETS,
@@ -302,6 +304,15 @@ export async function POST(req: NextRequest) {
     if (!result.skipped && result.stats) {
       dailyStats = result.stats;
     }
+
+    // The Nightly Build: pair-aware heartbeat (record activity)
+    try {
+      const activePairId = await getActivePairId();
+      await runHeartbeat(activePairId);
+    } catch (e) {
+      console.warn("[HEARTBEAT] runHeartbeat failed:", e);
+    }
+
     lastHeartbeat = Date.now();
     nextHeartbeat = interval > 0 ? lastHeartbeat + interval * 60 * 1000 : null;
     await saveAutopilotState();

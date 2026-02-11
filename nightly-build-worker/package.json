@@ -1,0 +1,22 @@
+{
+  "name": "nightly-build-worker",
+  "version": "0.1.0",
+  "description": "Local agent worker daemon for The Nightly Build. Runs on any machine with Ollama, feeds into your Nightly Build instance.",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "watch": "tsx watch src/index.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "@types/node": "^20.11.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

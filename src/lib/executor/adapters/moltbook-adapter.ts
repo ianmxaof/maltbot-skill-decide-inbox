@@ -102,10 +102,10 @@ export class MoltbookAdapter implements ExecutorAdapter {
       return {
         success: true,
         items: items.map((item: { id: string; category?: string; title?: string; [k: string]: unknown }) => ({
+          ...item,
           id: item.id,
           category: item.category ?? "social",
           title: item.title ?? "",
-          ...item,
         })),
       };
     } catch (err) {

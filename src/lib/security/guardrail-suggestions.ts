@@ -47,7 +47,7 @@ export function suggestGuardrails(entries: TypedActivityEntry[]): SuggestedRule[
   }
 
   // Repeatedly blocked same path/target -> suggest allowlist (for file paths) or override allow (for operations)
-  for (const [key, count] of blockedByTarget) {
+  for (const [key, count] of Array.from(blockedByTarget.entries())) {
     if (count < BLOCKED_THRESHOLD) continue;
     const [operation, target] = key.split("\t");
     const targetStr = target ?? "";
@@ -72,7 +72,7 @@ export function suggestGuardrails(entries: TypedActivityEntry[]): SuggestedRule[
   }
 
   // Frequent interaction with same target -> suggest auto-approve (trust)
-  for (const [key, count] of approvedByTarget) {
+  for (const [key, count] of Array.from(approvedByTarget.entries())) {
     if (count < APPROVED_THRESHOLD) continue;
     const parts = key.split("\t");
     const operation = parts[0];

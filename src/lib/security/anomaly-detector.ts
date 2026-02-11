@@ -1,7 +1,7 @@
 // src/lib/security/anomaly-detector.ts
 // Real-time Anomaly Detection Engine for Agent Behavior
 
-import { getActivityStore } from "@/lib/persistence";
+import { getActivityStore, type TypedActivityEntry } from "@/lib/persistence";
 import { getOperatorId } from "@/lib/operator";
 
 export interface AnomalyEvent {
@@ -189,7 +189,7 @@ export class AnomalyDetector {
           value: recentCount,
           baseline: baselineRate,
           operatorId: getOperatorId(),
-        })
+        } as TypedActivityEntry)
         .catch(() => {});
       return this.createAnomaly(
         'rate_spike',
@@ -419,7 +419,7 @@ export class AnomalyDetector {
         anomalyType: type,
         severity,
         operatorId: getOperatorId(),
-      })
+      } as TypedActivityEntry)
       .catch(() => {});
 
     // Auto-pause on emergency

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
+    "dev": "node scripts/dev-reset-onboarding.js && next dev -H 0.0.0.0",
     "dev:clean": "node scripts/clean-next.mjs && next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "cron-parser": "^5.5.0",
+    "next-auth": "^4.24.10",
     "date-fns": "^3.6.0",
     "google-auth-library": "^10.5.0",
     "lucide-react": "^0.460.0",

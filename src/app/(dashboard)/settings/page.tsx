@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { ApiKeysPanel, ModelPanel, IdentityPanel, SoulPanel, MemoryPanel, ScheduledTasksPanel, GoogleOAuthPanel, RefreshIntervalPanel, SignalsRssPanel, SignalsGitHubPanel } from "@/components/settings";
+import { VisibilityControls, SpaceThemeEditor } from "@/components/social";
+import { usePair } from "@/hooks/usePair";
 
 export default function SettingsPage() {
+  const { pair } = usePair();
+  const pairId = pair?.id ?? "";
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
       <section className="mb-8">
@@ -16,6 +21,20 @@ export default function SettingsPage() {
       </section>
 
       <div className="space-y-8">
+        {pairId && (
+          <section className="rounded-lg border border-violet-500/20 bg-zinc-900/50 p-6">
+            <h3 className="text-sm font-semibold text-white mb-4">Space Visibility</h3>
+            <VisibilityControls pairId={pairId} />
+          </section>
+        )}
+
+        {pairId && (
+          <section className="rounded-lg border border-violet-500/20 bg-zinc-900/50 p-6">
+            <h3 className="text-sm font-semibold text-white mb-4">Space Theme</h3>
+            <SpaceThemeEditor pairId={pairId} />
+          </section>
+        )}
+
         <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
           <h3 className="text-sm font-semibold text-white mb-4">Feed auto-refresh</h3>
           <RefreshIntervalPanel />

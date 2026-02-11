@@ -7,7 +7,7 @@ import { getVault, CredentialPermission } from "./credential-vault";
 import { isSystemHalted } from "@/lib/system-state";
 import { checkAwareness } from "@/lib/awareness";
 import type { AwarenessResult } from "@/types/governance";
-import { getActivityStore } from "@/lib/persistence";
+import { getActivityStore, type TypedActivityEntry } from "@/lib/persistence";
 import { getOperatorId } from "@/lib/operator";
 import { loadOperationOverrides, resolveOverride } from "./operation-overrides";
 import { shouldAutoApprove } from "./trust-scoring";
@@ -564,7 +564,7 @@ export class SecurityMiddleware {
           target,
           reason: reason ?? result,
           operatorId,
-        })
+        } as TypedActivityEntry)
         .catch(() => {});
     } else if (result === "approved") {
       getActivityStore()
@@ -575,7 +575,7 @@ export class SecurityMiddleware {
           target,
           approvedBy: context.userId,
           operatorId,
-        })
+        } as TypedActivityEntry)
         .catch(() => {});
     }
   }

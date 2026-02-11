@@ -9,6 +9,7 @@ import type { SignalFeedCard } from "@/types/dashboard";
 import type { FeedItem } from "@/types/signals";
 import { Zap, RefreshCw, ExternalLink, Layers, Pause, Play, Inbox } from "lucide-react";
 import Link from "next/link";
+import { showToast } from "@/lib/toast";
 
 type SourceFilter = "all" | "moltbook" | "rss" | "github";
 type LayerFilter = "all" | 1 | 2 | 3;
@@ -48,7 +49,9 @@ export function FeedPanel() {
         }),
       });
       const data = await res.json();
-      if (!data.success) {
+      if (data.success) {
+        showToast("Added to Decide Inbox");
+      } else {
         console.error("Send to inbox failed:", data.error);
       }
     } catch (e) {
