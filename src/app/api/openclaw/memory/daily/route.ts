@@ -5,19 +5,24 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   listDailyNotes,
   readDailyNote,
   writeDailyNote,
 } from "@/lib/openclaw-memory";
 
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const PatchDailySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Missing or invalid date (use YYYY-MM-DD)"),
+  content: z.string({ required_error: "Missing content" }),
+});
 
 export async function GET(req: NextRequest) {
   try {
     const date = req.nextUrl.searchParams.get("date");
     if (date) {
-      if (!DATE_REGEX.test(date)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return NextResponse.json(
           { success: false, error: "Invalid date (use YYYY-MM-DD)" },
           { status: 400 }
@@ -37,19 +42,10 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { date, content } = body as { date?: string; content?: string };
-    if (!date || !DATE_REGEX.test(date)) {
-      return NextResponse.json(
-        { success: false, error: "Missing or invalid date (use YYYY-MM-DD)" },
-        { status: 400 }
-      );
-    }
-    if (typeof content !== "string") {
-      return NextResponse.json(
-        { success: false, error: "Missing content" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseBody(PatchDailySchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { date, content } = parsed.data;
+
     await writeDailyNote(date, content);
     return NextResponse.json({ success: true });
   } catch (err) {

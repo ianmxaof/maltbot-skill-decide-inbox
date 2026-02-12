@@ -90,6 +90,14 @@ export function PublicProfileStep() {
       }
       clearOnboardDraft();
       showToast("Profile saved");
+      // Fire first-scan in background — don't await
+      if (data.pair?.id) {
+        fetch("/api/workers/first-scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pairId: data.pair.id }),
+        }).catch((e) => console.error("[PublicProfileStep] first-scan failed:", e));
+      }
       router.push("/home");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create pair");

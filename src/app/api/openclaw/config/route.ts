@@ -4,8 +4,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { gatewayCall } from "@/lib/openclaw";
 import { readConfig, patchConfig } from "@/lib/openclaw-config";
+
+const PatchConfigSchema = z.object({
+  raw: z.string().optional(),
+  partial: z.record(z.unknown()).optional(),
+  baseHash: z.string().optional(),
+});
 
 export async function GET() {
   try {
@@ -29,7 +37,11 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const raw = typeof body.raw === "string" ? body.raw : JSON.stringify(body.partial ?? body);
+    const parsed = parseBody(PatchConfigSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { raw: rawField, partial: partialField, baseHash } = parsed.data;
+
+    const raw = typeof rawField === "string" ? rawField : JSON.stringify(partialField ?? body);
     let partial: Record<string, unknown>;
     try {
       partial = JSON.parse(raw) as Record<string, unknown>;
@@ -39,7 +51,6 @@ export async function PATCH(req: NextRequest) {
         { status: 400 }
       );
     }
-    const baseHash = typeof body.baseHash === "string" ? body.baseHash : undefined;
     if (baseHash) {
       const gw = await gatewayCall("config.patch", {
         raw: JSON.stringify(partial),

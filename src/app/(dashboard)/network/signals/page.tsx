@@ -25,7 +25,7 @@ export default function NetworkSignalsPage() {
       .then((data) => {
         if (data.success) setConvergences(data.convergences ?? []);
       })
-      .catch(() => {})
+      .catch((e) => console.error("[network/signals] fetch failed:", e))
       .finally(() => setLoading(false));
   }, [pair?.id]);
 

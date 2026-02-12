@@ -2,6 +2,8 @@
 // Dashboard pushes config updates through PUT.
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   getWorkerConfig,
   setWorkerConfig,
@@ -9,10 +11,40 @@ import {
   removeWatcherFromConfig,
   getWorkerById,
 } from "@/lib/worker-store";
+import { validateWorkerAuth } from "@/lib/worker-auth";
 import type { WorkerConfig, WatcherConfig } from "@/types/worker";
+
+// ── Zod schemas ────────────────────────────────────────────
+const PutConfigSchema = z.object({
+  workerId: z.string().min(1, "workerId is required"),
+  config: z.record(z.unknown()).optional(),
+});
+
+const AddWatcherSchema = z.object({
+  workerId: z.string().min(1, "workerId is required"),
+  action: z.literal("add_watcher"),
+  watcher: z.record(z.unknown()).refine((v) => v !== null && v !== undefined, {
+    message: "watcher object required",
+  }),
+  watcherId: z.string().optional(),
+});
+
+const RemoveWatcherSchema = z.object({
+  workerId: z.string().min(1, "workerId is required"),
+  action: z.literal("remove_watcher"),
+  watcherId: z.string().min(1, "watcherId required"),
+  watcher: z.record(z.unknown()).optional(),
+});
+
+const PostConfigSchema = z.discriminatedUnion("action", [
+  AddWatcherSchema,
+  RemoveWatcherSchema,
+]);
 
 // GET: worker pulls its config
 export async function GET(req: NextRequest) {
+  const auth = validateWorkerAuth(req);
+  if (!auth.ok) return auth.response!;
   try {
     const workerId = req.nextUrl.searchParams.get("workerId");
     if (!workerId) {
@@ -41,16 +73,13 @@ export async function GET(req: NextRequest) {
 
 // PUT: dashboard updates worker config
 export async function PUT(req: NextRequest) {
+  const auth = validateWorkerAuth(req);
+  if (!auth.ok) return auth.response!;
   try {
     const body = await req.json();
-    const { workerId, config } = body;
-
-    if (!workerId) {
-      return NextResponse.json(
-        { error: "workerId required" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseBody(PutConfigSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { workerId, config } = parsed.data;
 
     const worker = await getWorkerById(workerId);
     if (!worker) {
@@ -82,37 +111,22 @@ export async function PUT(req: NextRequest) {
 
 // POST: add/remove watchers (convenience endpoint)
 export async function POST(req: NextRequest) {
+  const auth = validateWorkerAuth(req);
+  if (!auth.ok) return auth.response!;
   try {
     const body = await req.json();
-    const { workerId, action } = body;
-
-    if (!workerId || !action) {
-      return NextResponse.json(
-        { error: "workerId and action required" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseBody(PostConfigSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { workerId, action } = parsed.data;
 
     if (action === "add_watcher") {
-      const watcher: WatcherConfig = body.watcher;
-      if (!watcher) {
-        return NextResponse.json(
-          { error: "watcher object required" },
-          { status: 400 }
-        );
-      }
+      const watcher = parsed.data.watcher as WatcherConfig;
       const config = await addWatcherToConfig(workerId, watcher);
       return NextResponse.json(config);
     }
 
     if (action === "remove_watcher") {
-      const { watcherId } = body;
-      if (!watcherId) {
-        return NextResponse.json(
-          { error: "watcherId required" },
-          { status: 400 }
-        );
-      }
+      const { watcherId } = parsed.data;
       const config = await removeWatcherFromConfig(workerId, watcherId);
       return NextResponse.json(config);
     }

@@ -28,7 +28,7 @@ export default function DiscoverPage() {
         const items = Array.isArray(data) ? data : data.pairs ?? [];
         setPairs(items);
       })
-      .catch(() => setPairs([]))
+      .catch((e) => { console.error("[network/discover] fetch pairs failed:", e); setPairs([]); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -53,7 +53,7 @@ export default function DiscoverPage() {
           );
         }
       })
-      .catch(() => {});
+      .catch((e) => console.error("[network/discover] fetch alignment failed:", e));
   }, [viewerPair?.id, pairs.length]);
 
   return (

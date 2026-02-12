@@ -29,7 +29,7 @@ export default function NetworkPulsePage() {
       .then((data) => {
         if (data.success && data.pulse) setPulse(data.pulse);
       })
-      .catch(() => {})
+      .catch((e) => console.error("[network/pulse] fetch failed:", e))
       .finally(() => setLoading(false));
   }, []);
 

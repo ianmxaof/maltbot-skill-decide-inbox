@@ -2,9 +2,12 @@
 
 import { signOut, useSession } from "next-auth/react";
 import { LogOut, User } from "lucide-react";
+import { NotificationBell } from "./NotificationBell";
+import { usePair } from "@/hooks/usePair";
 
 export function DashboardHeaderAuth() {
   const { data: session, status } = useSession();
+  const { activePairId } = usePair();
 
   if (status === "loading") {
     return (
@@ -21,6 +24,7 @@ export function DashboardHeaderAuth() {
 
   return (
     <div className="flex items-center gap-2">
+      <NotificationBell pairId={activePairId} />
       <span className="flex items-center gap-1.5 text-xs text-zinc-400 max-w-[180px] truncate" title={session.user.email ?? undefined}>
         {img ? (
           <img src={img} alt="" className="w-6 h-6 rounded-full" />

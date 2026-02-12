@@ -4,14 +4,10 @@
  * Multi-pair from day one; getActivePairId() returns current pair for operator.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { AgentHumanPair, ContextSources } from "@/types/agent-pair";
 import { getOperatorId } from "@/lib/operator";
 
-const PAIRS_PATH = path.join(process.cwd(), ".data", "agent-pairs.json");
-const ACTIVE_PAIR_PATH = path.join(process.cwd(), ".data", "active-pair.json");
 const STORE_VERSION = 1;
 
 type PairsFile = {
@@ -19,18 +15,12 @@ type PairsFile = {
   version: number;
 };
 
-async function ensureDataDir(): Promise<void> {
-  const dir = path.dirname(PAIRS_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-}
-
 const SEED_MOCK_PAIRS = process.env.SEED_MOCK_PAIRS === "true";
 
 async function readPairsFile(): Promise<PairsFile> {
   try {
-    if (!existsSync(PAIRS_PATH)) {
+    const data = await kv.get<PairsFile>("agent-pairs");
+    if (!data) {
       const file: PairsFile = { pairs: [], version: STORE_VERSION };
       if (SEED_MOCK_PAIRS) {
         file.pairs = createSeedPairs();
@@ -38,8 +28,6 @@ async function readPairsFile(): Promise<PairsFile> {
       }
       return file;
     }
-    const raw = await readFile(PAIRS_PATH, "utf-8");
-    const data = JSON.parse(raw) as PairsFile;
     const pairs = data?.pairs ? data.pairs : [];
     if (SEED_MOCK_PAIRS && pairs.length === 0) {
       const file: PairsFile = { pairs: createSeedPairs(), version: STORE_VERSION };
@@ -78,8 +66,7 @@ function createSeedPairs(): AgentHumanPair[] {
 }
 
 async function writePairsFile(data: PairsFile): Promise<void> {
-  await ensureDataDir();
-  await writeFile(PAIRS_PATH, JSON.stringify(data, null, 2), "utf-8");
+  await kv.set("agent-pairs", data);
 }
 
 function nextId(): string {
@@ -111,14 +98,12 @@ function defaultValueCreated() {
 
 /**
  * Get the active pair ID for the current operator.
- * Reads from .data/active-pair.json or defaults to pair_1.
+ * Reads from active-pair key or defaults to pair_1.
  */
 export async function getActivePairId(): Promise<string> {
   try {
-    if (!existsSync(ACTIVE_PAIR_PATH)) return "pair_1";
-    const raw = await readFile(ACTIVE_PAIR_PATH, "utf-8");
-    const data = JSON.parse(raw) as { pairId?: string; operatorId?: string };
-    if (typeof data.pairId === "string" && data.pairId.trim()) {
+    const data = await kv.get<{ pairId?: string; operatorId?: string }>("active-pair");
+    if (data && typeof data.pairId === "string" && data.pairId.trim()) {
       return data.pairId.trim();
     }
   } catch {
@@ -131,13 +116,12 @@ export async function getActivePairId(): Promise<string> {
  * Set the active pair for the current operator.
  */
 export async function setActivePairId(pairId: string): Promise<void> {
-  await ensureDataDir();
   const data = {
     pairId,
     operatorId: getOperatorId(),
     updatedAt: new Date().toISOString(),
   };
-  await writeFile(ACTIVE_PAIR_PATH, JSON.stringify(data, null, 2), "utf-8");
+  await kv.set("active-pair", data);
 }
 
 /**

@@ -8,6 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { getPending, remove } from "@/lib/moltbook-pending";
 import { getPendingDev, markApprovedDev } from "@/lib/decide-pending";
 import {
@@ -28,14 +30,20 @@ import { getActivePairId } from "@/lib/agent-pair-store";
 import { recordAction } from "@/lib/agent-pair-store";
 import { appendActivity } from "@/lib/activity-feed-store";
 import { projectDecisionToFeed } from "@/lib/social-store";
+import { recordDecision as recordDisclosureDecision } from "@/lib/disclosure-store";
+import { createNotification } from "@/lib/notification-store";
+
+const ExecuteSchema = z.object({
+  id: z.string().trim().min(1, "id is required"),
+  approvedBy: z.string().trim().optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const id = typeof body.id === "string" ? body.id.trim() : "";
-    if (!id) {
-      return NextResponse.json({ success: false, error: "Missing id" }, { status: 400 });
-    }
+    const parsed = parseBody(ExecuteSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { id } = parsed.data;
 
     // Dev action: mark approved (execute deferred to Phase 2)
     const devItem = getPendingDev(id);
@@ -50,16 +58,21 @@ export async function POST(req: NextRequest) {
         reasoning: devItem.reasoning ?? "",
         outcome: "kept",
         tags: ["decide-inbox", "approved"],
-      }).catch(() => {});
-      await recordAction(activePairId, devItem.title ?? id, "kept", devItem.reasoning).catch(() => {});
+      }).catch((e) => console.error("[decide/execute] appendActivity failed:", e));
+      await recordAction(activePairId, devItem.title ?? id, "kept", devItem.reasoning).catch((e) => console.error("[decide/execute] recordAction failed:", e));
       // Project to social feed
-      await projectDecisionToFeed(activePairId, "approve", devItem.title ?? id, id).catch(() => {});
+      await projectDecisionToFeed(activePairId, "approve", devItem.title ?? id, id).catch((e) => console.error("[decide/execute] projectDecisionToFeed failed:", e));
+      // Record in disclosure state machine
+      const { newlyUnlocked } = await recordDisclosureDecision(activePairId).catch((e) => { console.error("[decide/execute] recordDisclosureDecision failed:", e); return { newlyUnlocked: [] as string[] }; });
+      for (const feat of newlyUnlocked) {
+        await createNotification(activePairId, "feature_unlock", "New feature unlocked", `You unlocked: ${feat.replace(/_/g, " ")}`, "/home").catch((e) => console.error("[decide/execute] createNotification failed:", e));
+      }
       return NextResponse.json({ success: true, message: "Dev action approved (execution deferred)" });
     }
 
     // Lifecycle: authorize execution (caller must be identified; optional session check later)
     const callerId =
-      (typeof body.approvedBy === "string" ? body.approvedBy.trim() : null) ??
+      parsed.data.approvedBy ??
       req.headers.get("x-caller-id")?.trim() ??
       "";
     const hookResult = await runBeforeToolExecution({
@@ -176,10 +189,10 @@ export async function POST(req: NextRequest) {
         reasoning: item.reasoning ?? "",
         outcome: "kept",
         tags: ["decide-inbox", "executed"],
-      }).catch(() => {});
-      await recordAction(activePairId, item.title ?? id, "kept", item.reasoning).catch(() => {});
+      }).catch((e) => console.error("[decide/execute] appendActivity failed:", e));
+      await recordAction(activePairId, item.title ?? id, "kept", item.reasoning).catch((e) => console.error("[decide/execute] recordAction failed:", e));
 
-      const approvedBy = (body.approvedBy as string) || "dashboard";
+      const approvedBy = parsed.data.approvedBy || "dashboard";
       await appendProvenance({
         decisionId: id,
         triggeredBy: [],
@@ -202,9 +215,14 @@ export async function POST(req: NextRequest) {
             : payload.type === "post" || payload.type === "create_submolt"
               ? payload.submolt ?? payload.name
               : undefined;
-      await recordSuccess(opKey, target, payload.rosterAgentId ?? undefined, getOperatorId()).catch(() => {});
+      await recordSuccess(opKey, target, payload.rosterAgentId ?? undefined, getOperatorId()).catch((e) => console.error("[decide/execute] recordSuccess failed:", e));
       // Project to social feed
-      await projectDecisionToFeed(activePairId, "approve", item.title ?? id, id).catch(() => {});
+      await projectDecisionToFeed(activePairId, "approve", item.title ?? id, id).catch((e) => console.error("[decide/execute] projectDecisionToFeed failed:", e));
+      // Record in disclosure state machine
+      const { newlyUnlocked: unlocked2 } = await recordDisclosureDecision(activePairId).catch((e) => { console.error("[decide/execute] recordDisclosureDecision failed:", e); return { newlyUnlocked: [] as string[] }; });
+      for (const feat of unlocked2) {
+        await createNotification(activePairId, "feature_unlock", "New feature unlocked", `You unlocked: ${feat.replace(/_/g, " ")}`, "/home").catch((e) => console.error("[decide/execute] createNotification failed:", e));
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -220,7 +238,7 @@ export async function POST(req: NextRequest) {
           : payload.type === "post" || payload.type === "create_submolt"
             ? payload.submolt ?? payload.name
             : undefined;
-    await recordFailure(opKey, target, payload.rosterAgentId ?? undefined, getOperatorId()).catch(() => {});
+    await recordFailure(opKey, target, payload.rosterAgentId ?? undefined, getOperatorId()).catch((e) => console.error("[decide/execute] recordFailure failed:", e));
     return NextResponse.json({ success: false, error: result.error }, { status: 502 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Execute failed";

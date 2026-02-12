@@ -4,20 +4,15 @@
  * Use getOperatorId() wherever a "user" or "caller" is needed so data is attributable.
  */
 
-import { readFile } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
-
-const OPERATOR_CONFIG_PATH = path.join(process.cwd(), ".data", "operator.json");
+import { kv } from "@/lib/db";
 
 let cachedId: string | null = null;
 let cachedHandle: string | null | undefined = undefined; // undefined = not loaded
 
 async function loadOperatorFromConfig(): Promise<{ id: string; handle?: string }> {
   try {
-    if (!existsSync(OPERATOR_CONFIG_PATH)) return { id: "default" };
-    const raw = await readFile(OPERATOR_CONFIG_PATH, "utf-8");
-    const data = JSON.parse(raw) as { operatorId?: string; handle?: string };
+    const data = await kv.get<{ operatorId?: string; handle?: string }>("operator");
+    if (!data) return { id: "default" };
     const id = typeof data.operatorId === "string" && data.operatorId.trim() ? data.operatorId.trim() : "default";
     const handle = typeof data.handle === "string" && data.handle.trim() ? data.handle.trim() : undefined;
     return { id, handle };

@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { getVault } from "@/lib/security/credential-vault";
 import type { CredentialPermission } from "@/lib/security/credential-vault";
+
+const StoreCredentialSchema = z.object({
+  service: z.string().min(1, "service is required"),
+  label: z.string().min(1, "label is required"),
+  value: z.string(),
+  permissions: z.array(z.string()).optional(),
+});
 
 /**
  * GET /api/security/vault
@@ -35,19 +44,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { service, label, value, permissions } = body as {
-      service?: string;
-      label?: string;
-      value?: string;
-      permissions?: string[];
-    };
+    const parsed = parseBody(StoreCredentialSchema, body);
+    if (!parsed.ok) return parsed.response;
 
-    if (!service || !label || typeof value !== "string") {
-      return NextResponse.json(
-        { error: "Missing required fields: service, label, value" },
-        { status: 400 }
-      );
-    }
+    const { service, label, value, permissions } = parsed.data;
 
     const vault = getVault();
     const perms = (permissions as CredentialPermission[] | undefined) ?? [];

@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { usePair } from "@/hooks/usePair";
+import { useDisclosure } from "@/hooks/useDisclosure";
+import { useActivityFeed } from "@/hooks/useActivityFeed";
+import { CheckCircle2, RotateCcw, Edit3, ChevronDown, ChevronUp, Send } from "lucide-react";
+import { SpecBuilder, PermissionsManager } from "@/components/dashboard";
 
 interface Worker {
   id: string;
@@ -232,6 +237,7 @@ export default function WorkerFleetPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
   const { activePairId, pair } = usePair();
+  const { state: disclosure } = useDisclosure(activePairId);
   const currentPairId = activePairId ?? pair?.id ?? "";
 
   const load = useCallback(async () => {
@@ -325,6 +331,143 @@ export default function WorkerFleetPage() {
           </div>
         </div>
       )}
+
+      {/* ─── Task Specs & Permissions ──────────────── */}
+      {currentPairId && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+          <SpecBuilder pairId={currentPairId} />
+          <PermissionsManager pairId={currentPairId} />
+        </div>
+      )}
+
+      {/* ─── Activity Feed Section ─────────────────── */}
+      <ActivitySection />
+
+      {/* ─── Direct to Agent Section ───────────────── */}
+      {disclosure?.features.direct_to_agent && <DirectToAgentSection />}
     </div>
+  );
+}
+
+// ─── Embedded Activity Feed ──────────────────────────────
+
+function OutcomeIcon({ outcome }: { outcome?: "kept" | "reverted" | "modified" }) {
+  switch (outcome) {
+    case "kept":
+      return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+    case "reverted":
+      return <RotateCcw className="w-4 h-4 text-amber-500" />;
+    case "modified":
+      return <Edit3 className="w-4 h-4 text-blue-500" />;
+    default:
+      return <CheckCircle2 className="w-4 h-4 text-zinc-500" />;
+  }
+}
+
+function ActivitySection() {
+  const { items, loading } = useActivityFeed({ limit: 10 });
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <section className="mt-8">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-sm font-semibold text-zinc-300 hover:text-white transition mb-4"
+      >
+        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        Activity ({items.length})
+      </button>
+      {expanded && (
+        loading ? (
+          <p className="text-sm text-zinc-500">Loading activity...</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-zinc-500">No activity yet. Actions will appear here as your agent works.</p>
+        ) : (
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <li key={item.id} className="rounded-lg border border-zinc-700 bg-zinc-900/50 p-3 flex items-start gap-3">
+                <OutcomeIcon outcome={item.outcome} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{item.action}</p>
+                  {item.reasoning && (
+                    <p className="text-xs text-zinc-500 mt-0.5 truncate">{item.reasoning}</p>
+                  )}
+                  <p className="text-[10px] text-zinc-600 mt-1">{new Date(item.timestamp).toLocaleString()}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )
+      )}
+    </section>
+  );
+}
+
+// ─── Embedded Direct to Agent ────────────────────────────
+
+function DirectToAgentSection() {
+  const [expanded, setExpanded] = useState(false);
+  const [command, setCommand] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const send = async () => {
+    if (!command.trim()) return;
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/openclaw/agent/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: command }),
+      });
+      const data = await res.json();
+      setResult(data.output ?? data.error ?? JSON.stringify(data));
+    } catch (e) {
+      setResult(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <section className="mt-6">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-sm font-semibold text-zinc-300 hover:text-white transition mb-4"
+      >
+        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        Direct to Agent
+      </button>
+      {expanded && (
+        <div className="rounded-lg border border-zinc-700 bg-zinc-900/50 p-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && send()}
+              placeholder="Send a command to your agent..."
+              className="flex-1 rounded border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500"
+            />
+            <button
+              type="button"
+              onClick={send}
+              disabled={sending || !command.trim()}
+              className="px-3 py-2 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 disabled:opacity-50 transition"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+          {result && (
+            <pre className="mt-3 text-xs text-zinc-400 bg-zinc-800 rounded p-3 max-h-48 overflow-auto whitespace-pre-wrap">
+              {result}
+            </pre>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

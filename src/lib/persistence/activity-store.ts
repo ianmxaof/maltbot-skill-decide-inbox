@@ -4,9 +4,7 @@
  * Typed entries enable reliable pattern detection in suggestGuardrails.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { AnomalyType } from "@/lib/security/anomaly-detector";
 import type { Visibility } from "@/types/governance";
 
@@ -56,27 +54,12 @@ export interface ActivityQueryOptions {
   limit?: number;
 }
 
-const DEFAULT_DATA_DIR = ".data";
-const DEFAULT_FILENAME = "activity-log.jsonl";
+const KV_KEY = "activity-log.jsonl";
 
 export class ActivityStore {
-  private filePath: string;
   private buffer: TypedActivityEntry[] = [];
   private maxBufferSize = 500;
   private flushScheduled = false;
-
-  constructor(options?: { dataDir?: string; filename?: string }) {
-    const dataDir = options?.dataDir ?? path.join(process.cwd(), DEFAULT_DATA_DIR);
-    const filename = options?.filename ?? DEFAULT_FILENAME;
-    this.filePath = path.join(dataDir, filename);
-  }
-
-  private async ensureDir(): Promise<void> {
-    const dir = path.dirname(this.filePath);
-    if (!existsSync(dir)) {
-      await mkdir(dir, { recursive: true });
-    }
-  }
 
   /**
    * Append a typed entry. Buffers in memory and appends to JSONL file.
@@ -93,7 +76,7 @@ export class ActivityStore {
       this.flushScheduled = true;
       setImmediate(() => {
         this.flushScheduled = false;
-        this.flush().catch(() => {});
+        this.flush().catch((e) => console.error("[activity-store] flush failed:", e));
       });
     }
   }
@@ -103,9 +86,10 @@ export class ActivityStore {
    */
   async flush(): Promise<void> {
     if (this.buffer.length === 0) return;
-    await this.ensureDir();
-    const lines = this.buffer.splice(0, this.buffer.length).map((e) => JSON.stringify(e)).join("\n") + "\n";
-    await writeFile(this.filePath, lines, { flag: "a", encoding: "utf-8" });
+    const entries = this.buffer.splice(0, this.buffer.length);
+    for (const e of entries) {
+      await kv.append(KV_KEY, JSON.stringify(e));
+    }
   }
 
   /**
@@ -120,10 +104,8 @@ export class ActivityStore {
     const limit = opts.limit ?? 10000;
 
     const results: TypedActivityEntry[] = [];
-    if (!existsSync(this.filePath)) return results;
 
-    const content = await readFile(this.filePath, "utf-8");
-    const lines = content.split("\n").filter((line) => line.trim());
+    const lines = await kv.readLines(KV_KEY);
     const operatorFilter = opts.operatorId;
     for (let i = lines.length - 1; i >= 0 && results.length < limit; i--) {
       try {
@@ -143,9 +125,9 @@ export class ActivityStore {
 
 let storeInstance: ActivityStore | null = null;
 
-export function getActivityStore(options?: ConstructorParameters<typeof ActivityStore>[0]): ActivityStore {
+export function getActivityStore(): ActivityStore {
   if (!storeInstance) {
-    storeInstance = new ActivityStore(options);
+    storeInstance = new ActivityStore();
   }
   return storeInstance;
 }

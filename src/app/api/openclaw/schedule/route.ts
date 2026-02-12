@@ -5,6 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   listScheduledJobs,
   addScheduledJob,
@@ -12,17 +14,12 @@ import {
   type ScheduledJobType,
 } from "@/lib/openclaw-scheduler";
 
-const VALID_TYPES: ScheduledJobType[] = [
-  "daily_briefing",
-  "weekly_report",
-  "reminder",
-  "heartbeat",
-  "custom",
-];
-
-function isValidType(t: string): t is ScheduledJobType {
-  return VALID_TYPES.includes(t as ScheduledJobType);
-}
+const PostScheduleSchema = z.object({
+  type: z.enum(["daily_briefing", "weekly_report", "reminder", "heartbeat", "custom"]),
+  cron: z.string().min(1, "Missing cron expression (e.g. 0 8 * * * for 8am daily)"),
+  label: z.string().optional(),
+  config: z.record(z.unknown()).optional(),
+});
 
 export async function GET() {
   try {
@@ -37,29 +34,15 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { type, cron, label, config } = body as {
-      type?: string;
-      cron?: string;
-      label?: string;
-      config?: Record<string, unknown>;
-    };
-    if (!type || !isValidType(type)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid type (daily_briefing|weekly_report|reminder|heartbeat|custom)" },
-        { status: 400 }
-      );
-    }
-    if (!cron || typeof cron !== "string") {
-      return NextResponse.json(
-        { success: false, error: "Missing cron expression (e.g. 0 8 * * * for 8am daily)" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseBody(PostScheduleSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { type, cron, label, config } = parsed.data;
+
     const job = await addScheduledJob({
       type: type as ScheduledJobType,
       cron,
-      label: typeof label === "string" ? label : type,
-      config: config && typeof config === "object" ? config : undefined,
+      label: label ?? type,
+      config,
     });
     return NextResponse.json({ success: true, job });
   } catch (err) {

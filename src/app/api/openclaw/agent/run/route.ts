@@ -8,20 +8,21 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { runAgent } from "@/lib/openclaw";
+
+const RunSchema = z.object({
+  message: z.string().trim().min(1, "message is required"),
+  agentId: z.string().trim().optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const message = typeof body.message === "string" ? body.message : "";
-    const agentId = typeof body.agentId === "string" ? body.agentId.trim() : undefined;
-
-    if (!message.trim()) {
-      return NextResponse.json(
-        { success: false, error: "message is required" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseBody(RunSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { message, agentId } = parsed.data;
 
     const result = await runAgent(message, { agentId, json: false });
 

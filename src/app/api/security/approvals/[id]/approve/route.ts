@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { getSecurityMiddleware } from "@/lib/security/security-middleware";
+
+const ApproveSchema = z.object({
+  approvedBy: z.string().default("dashboard"),
+});
 
 /**
  * POST /api/security/approvals/[id]/approve
@@ -12,7 +18,10 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const approvedBy = (body.approvedBy as string) || "dashboard";
+    const parsed = parseBody(ApproveSchema, body);
+    if (!parsed.ok) return parsed.response;
+
+    const { approvedBy } = parsed.data;
 
     const middleware = getSecurityMiddleware();
     const ok = middleware.approve(id, approvedBy);

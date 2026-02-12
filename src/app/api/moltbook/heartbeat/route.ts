@@ -9,6 +9,8 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { MoltbookClient } from "@/lib/moltbook";
 import { listAgents, getApiKeyForAgent } from "@/lib/agent-roster";
 import { addPending } from "@/lib/moltbook-pending";
@@ -17,6 +19,8 @@ import { recordSuccess, recordFailure } from "@/lib/security/trust-scoring";
 import { getOperatorId } from "@/lib/operator";
 import { getActivePairId } from "@/lib/agent-pair-store";
 import { runHeartbeat } from "@/lib/heartbeat-runner";
+import { sweepExpiredPermissions } from "@/lib/security/permission-expiry";
+import { checkSpecExpiry } from "@/lib/task-spec-store";
 import MoltbookAutopilot, {
   AutopilotConfig,
   AUTOPILOT_PRESETS,
@@ -25,6 +29,10 @@ import MoltbookAutopilot, {
   type ActivityEvent,
   type HeartbeatResult,
 } from "@/lib/moltbook-autopilot";
+
+const HeartbeatSchema = z.object({
+  mode: z.enum(["off", "conservative", "balanced", "aggressive", "creator", "full"]).optional(),
+});
 
 const AUTOPILOT_STATE_PATH = path.join(process.cwd(), ".data", "autopilot.json");
 
@@ -230,18 +238,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
+    const parsed = parseBody(HeartbeatSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { mode: modeParam } = parsed.data;
+
     await loadAutopilotState();
 
     if (await isSystemHalted()) {
       return NextResponse.json({ skipped: true, reason: "System halted" });
     }
 
-    const modeParam = body.mode as string | undefined;
-    if (
-      modeParam &&
-      ["off", "conservative", "balanced", "aggressive", "creator", "full"].includes(modeParam)
-    ) {
-      currentMode = modeParam as AutopilotMode;
+    if (modeParam) {
+      currentMode = modeParam;
       await saveAutopilotState();
     }
 
@@ -294,9 +302,9 @@ export async function POST(req: NextRequest) {
         const opKey = opMap[a.action] ?? `write:moltbook_${a.action}`;
         const target = a.postId ?? a.agent ?? a.post ? String((a.post as { id?: string })?.id ?? "") : undefined;
         if (a.success) {
-          recordSuccess(opKey, target, undefined, getOperatorId()).catch(() => {});
+          recordSuccess(opKey, target, undefined, getOperatorId()).catch((e) => console.error("[moltbook/heartbeat] recordSuccess failed:", e));
         } else {
-          recordFailure(opKey, target, undefined, getOperatorId()).catch(() => {});
+          recordFailure(opKey, target, undefined, getOperatorId()).catch((e) => console.error("[moltbook/heartbeat] recordFailure failed:", e));
         }
       }
     }
@@ -311,6 +319,16 @@ export async function POST(req: NextRequest) {
       await runHeartbeat(activePairId);
     } catch (e) {
       console.warn("[HEARTBEAT] runHeartbeat failed:", e);
+    }
+
+    // Sweep expired permissions and task specs on each heartbeat
+    try {
+      const expiredPerms = await sweepExpiredPermissions();
+      const expiredSpecs = await checkSpecExpiry();
+      if (expiredPerms > 0) console.log(`[HEARTBEAT] Swept ${expiredPerms} expired permission(s)`);
+      if (expiredSpecs.length > 0) console.log(`[HEARTBEAT] Expired ${expiredSpecs.length} task spec(s)`);
+    } catch (e) {
+      console.warn("[HEARTBEAT] permission/spec sweep failed:", e);
     }
 
     lastHeartbeat = Date.now();

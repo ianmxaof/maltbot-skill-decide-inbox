@@ -32,5 +32,5 @@ export async function runHeartbeat(pairId: string): Promise<void> {
     action: `Heartbeat: ${count} source${count !== 1 ? "s" : ""} scanned`,
     reasoning: "Scheduled heartbeat",
     tags: ["heartbeat", "automated"],
-  }).catch(() => {});
+  }).catch((e) => console.error("[heartbeat-runner] appendActivity failed:", e));
 }

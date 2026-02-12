@@ -7,18 +7,23 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { installSkill, installSkillViaClawHub } from "@/lib/openclaw";
 import { addMaltbotInstalledSkill } from "@/lib/maltbot-installed-skills";
 import { OPENCLAW_ERROR_CODES } from "@/types/api";
 
+const InstallSchema = z.object({
+  name: z.string().trim().min(1, "Missing name"),
+  installSlug: z.string().trim().optional(),
+});
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    const installSlug = typeof body.installSlug === "string" ? body.installSlug.trim() : null;
-    if (!name) {
-      return NextResponse.json({ success: false, error: "Missing name" }, { status: 400 });
-    }
+    const parsed = parseBody(InstallSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { name, installSlug } = parsed.data;
 
     // Use explicit slug for ClawHub when provided (e.g. phantom-fdjtg, blogwatcher)
     const result = installSlug

@@ -8,6 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   addFollow,
   removeFollow,
@@ -16,25 +18,22 @@ import {
   isFollowing,
 } from "@/lib/social-store";
 
+const FollowSchema = z
+  .object({
+    followerId: z.string().trim().min(1, "Missing followerId"),
+    followingId: z.string().trim().min(1, "Missing followingId"),
+  })
+  .refine((d) => d.followerId !== d.followingId, {
+    message: "Cannot follow yourself",
+  });
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const followerId = typeof body.followerId === "string" ? body.followerId.trim() : "";
-    const followingId = typeof body.followingId === "string" ? body.followingId.trim() : "";
+    const parsed = parseBody(FollowSchema, body);
+    if (!parsed.ok) return parsed.response;
 
-    if (!followerId || !followingId) {
-      return NextResponse.json(
-        { success: false, error: "Missing followerId or followingId" },
-        { status: 400 }
-      );
-    }
-
-    if (followerId === followingId) {
-      return NextResponse.json(
-        { success: false, error: "Cannot follow yourself" },
-        { status: 400 }
-      );
-    }
+    const { followerId, followingId } = parsed.data;
 
     const follow = await addFollow(followerId, followingId);
     return NextResponse.json({ success: true, follow });
@@ -47,15 +46,10 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json();
-    const followerId = typeof body.followerId === "string" ? body.followerId.trim() : "";
-    const followingId = typeof body.followingId === "string" ? body.followingId.trim() : "";
+    const parsed = parseBody(FollowSchema, body);
+    if (!parsed.ok) return parsed.response;
 
-    if (!followerId || !followingId) {
-      return NextResponse.json(
-        { success: false, error: "Missing followerId or followingId" },
-        { status: 400 }
-      );
-    }
+    const { followerId, followingId } = parsed.data;
 
     const removed = await removeFollow(followerId, followingId);
     return NextResponse.json({ success: true, removed });

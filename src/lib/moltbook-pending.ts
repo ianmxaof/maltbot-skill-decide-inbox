@@ -7,9 +7,7 @@
  * For production, replace with a database (e.g. SQLite, PostgreSQL).
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { SocialAction } from "@/types/dashboard";
 
 export type MoltbookPayload = {
@@ -31,7 +29,6 @@ export type PendingSocialAction = SocialAction & {
   moltbookPayload?: MoltbookPayload;
 };
 
-const PENDING_PATH = path.join(process.cwd(), ".data", "moltbook-pending.json");
 const store = new Map<string, PendingSocialAction>();
 let loaded = false;
 let idCounter = 1;
@@ -40,20 +37,11 @@ function nextId(): string {
   return `moltbook-${Date.now()}-${idCounter++}`;
 }
 
-async function ensureDataDir(): Promise<void> {
-  const dir = path.dirname(PENDING_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-}
-
 async function loadStore(): Promise<void> {
   if (loaded) return;
   loaded = true;
   try {
-    if (!existsSync(PENDING_PATH)) return;
-    const raw = await readFile(PENDING_PATH, "utf-8");
-    const data = JSON.parse(raw) as { items: PendingSocialAction[] };
+    const data = await kv.get<{ items: PendingSocialAction[] }>("moltbook-pending");
     const items = Array.isArray(data?.items) ? data.items : [];
     store.clear();
     for (const item of items) {
@@ -67,13 +55,8 @@ async function loadStore(): Promise<void> {
 }
 
 async function saveStore(): Promise<void> {
-  await ensureDataDir();
   const items = Array.from(store.values()).filter((i) => i.status === "pending");
-  await writeFile(
-    PENDING_PATH,
-    JSON.stringify({ version: 1, items }, null, 2),
-    "utf-8"
-  );
+  await kv.set("moltbook-pending", { version: 1, items });
 }
 
 export async function addPending(

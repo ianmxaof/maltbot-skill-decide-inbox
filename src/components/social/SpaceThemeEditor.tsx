@@ -56,7 +56,7 @@ export function SpaceThemeEditor({ pairId }: SpaceThemeEditorProps) {
           }));
         }
       })
-      .catch(() => {})
+      .catch((e) => console.error("[SpaceThemeEditor] fetch failed:", e))
       .finally(() => setLoading(false));
   }, [pairId]);
 

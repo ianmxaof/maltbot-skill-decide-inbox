@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   const engine = getResearchEngine();
-  const tasks = engine.getAllTasks();
+  const tasks = await engine.getAllTasks();
 
   return NextResponse.json({
     tasks: tasks.map((t) => ({

@@ -5,9 +5,7 @@
  * Mirrors pattern from agent-roster.ts.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { Project, LinkedRepo, LinkedFeed, LinkedAgent } from "@/types/project";
 
 type ProjectsFile = {
@@ -15,20 +13,11 @@ type ProjectsFile = {
   version: number;
 };
 
-const PROJECTS_PATH = path.join(process.cwd(), ".data", "projects.json");
 const STORE_VERSION = 1;
-
-async function ensureDataDir(): Promise<void> {
-  const dir = path.dirname(PROJECTS_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-}
 
 async function readProjectsFile(): Promise<ProjectsFile> {
   try {
-    const raw = await readFile(PROJECTS_PATH, "utf-8");
-    const data = JSON.parse(raw) as ProjectsFile;
+    const data = await kv.get<ProjectsFile>("projects");
     return data?.projects ? data : { projects: [], version: STORE_VERSION };
   } catch {
     return { projects: [], version: STORE_VERSION };
@@ -36,8 +25,7 @@ async function readProjectsFile(): Promise<ProjectsFile> {
 }
 
 async function writeProjectsFile(data: ProjectsFile): Promise<void> {
-  await ensureDataDir();
-  await writeFile(PROJECTS_PATH, JSON.stringify(data, null, 2), "utf-8");
+  await kv.set("projects", data);
 }
 
 function nextId(): string {

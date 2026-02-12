@@ -4,30 +4,18 @@
  * Append-only; seeded from decide execute + moltbook activity.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { ActivityFeedItem } from "@/types/agent-pair";
 
-const FEED_PATH = path.join(process.cwd(), ".data", "activity-feed.json");
 const MAX_ITEMS = 1000;
 
 type FeedFile = {
   items: ActivityFeedItem[];
 };
 
-async function ensureDataDir(): Promise<void> {
-  const dir = path.dirname(FEED_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-}
-
 async function readFeed(): Promise<FeedFile> {
   try {
-    if (!existsSync(FEED_PATH)) return { items: [] };
-    const raw = await readFile(FEED_PATH, "utf-8");
-    const data = JSON.parse(raw) as FeedFile;
+    const data = await kv.get<FeedFile>("activity-feed");
     return { items: Array.isArray(data?.items) ? data.items : [] };
   } catch {
     return { items: [] };
@@ -35,8 +23,7 @@ async function readFeed(): Promise<FeedFile> {
 }
 
 async function writeFeed(data: FeedFile): Promise<void> {
-  await ensureDataDir();
-  await writeFile(FEED_PATH, JSON.stringify(data, null, 2), "utf-8");
+  await kv.set("activity-feed", data);
 }
 
 export async function appendActivity(item: ActivityFeedItem): Promise<void> {

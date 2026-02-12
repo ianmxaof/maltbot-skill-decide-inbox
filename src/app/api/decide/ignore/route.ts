@@ -9,6 +9,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { markIgnored } from "@/lib/moltbook-pending";
 import { getPendingDev, markIgnoredDev } from "@/lib/decide-pending";
 import { resolveSignal } from "@/lib/signal-pending";
@@ -16,16 +18,20 @@ import { appendProvenance } from "@/lib/decision-provenance";
 import { recordOutcomesForDecision } from "@/lib/signal-outcomes";
 import { projectDecisionToFeed } from "@/lib/social-store";
 import { getActivePairId } from "@/lib/agent-pair-store";
+import { recordDecision as recordDisclosureDecision } from "@/lib/disclosure-store";
+import { createNotification } from "@/lib/notification-store";
+
+const IgnoreSchema = z.object({
+  id: z.string().trim().min(1, "id is required"),
+  deniedBy: z.string().trim().default("dashboard"),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const id = typeof body.id === "string" ? body.id.trim() : "";
-    if (!id) {
-      return NextResponse.json({ success: false, error: "Missing id" }, { status: 400 });
-    }
-
-    const deniedBy = (body.deniedBy as string) || "dashboard";
+    const parsed = parseBody(IgnoreSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { id, deniedBy } = parsed.data;
 
     const activePairId = await getActivePairId();
 
@@ -40,7 +46,12 @@ export async function POST(req: NextRequest) {
         humanApproval: { approvedBy: deniedBy, timestamp: new Date().toISOString(), notes: "ignored" },
       });
       await recordOutcomesForDecision(id, "ignored", [], "unknown");
-      await projectDecisionToFeed(activePairId, "ignore", devItem.title ?? id, id).catch(() => {});
+      await projectDecisionToFeed(activePairId, "ignore", devItem.title ?? id, id).catch((e) => console.error("[decide/ignore] projectDecisionToFeed failed:", e));
+      // Record in disclosure state machine
+      const { newlyUnlocked } = await recordDisclosureDecision(activePairId).catch((e) => { console.error("[decide/ignore] recordDisclosureDecision failed:", e); return { newlyUnlocked: [] as string[] }; });
+      for (const feat of newlyUnlocked) {
+        await createNotification(activePairId, "feature_unlock", "New feature unlocked", `You unlocked: ${feat.replace(/_/g, " ")}`, "/home").catch((e) => console.error("[decide/ignore] createNotification failed:", e));
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -71,7 +82,12 @@ export async function POST(req: NextRequest) {
       humanApproval: { approvedBy: deniedBy, timestamp: new Date().toISOString(), notes: "ignored" },
     });
     await recordOutcomesForDecision(id, "ignored", [], "unknown");
-    await projectDecisionToFeed(activePairId, "ignore", item.title ?? id, id).catch(() => {});
+    await projectDecisionToFeed(activePairId, "ignore", item.title ?? id, id).catch((e) => console.error("[decide/ignore] projectDecisionToFeed failed:", e));
+    // Record in disclosure state machine
+    const { newlyUnlocked: unlocked2 } = await recordDisclosureDecision(activePairId).catch((e) => { console.error("[decide/ignore] recordDisclosureDecision failed:", e); return { newlyUnlocked: [] as string[] }; });
+    for (const feat of unlocked2) {
+      await createNotification(activePairId, "feature_unlock", "New feature unlocked", `You unlocked: ${feat.replace(/_/g, " ")}`, "/home").catch((e) => console.error("[decide/ignore] createNotification failed:", e));
+    }
     return NextResponse.json({ success: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Ignore failed";

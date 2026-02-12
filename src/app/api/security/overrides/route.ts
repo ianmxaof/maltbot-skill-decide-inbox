@@ -5,6 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   getOperationOverrides,
   addOperationOverride,
@@ -12,6 +14,22 @@ import {
   type OperationOverride,
 } from "@/lib/security/operation-overrides";
 import { getOperatorId } from "@/lib/operator";
+
+const PostOverrideSchema = z.object({
+  operation: z.string().trim().min(1, "operation is required"),
+  target: z.string().trim().optional(),
+  scope: z.enum(["agent", "global"]).default("global"),
+  agentId: z.string().trim().optional(),
+  action: z.enum(["allow", "block", "ask"]).default("allow"),
+  expiresAt: z.number().optional(),
+  reason: z.string().trim().optional(),
+});
+
+const DeleteOverrideSchema = z.object({
+  operation: z.string().trim().min(1, "operation is required"),
+  target: z.string().optional(),
+  agentId: z.string().optional(),
+});
 
 export async function GET() {
   try {
@@ -26,20 +44,23 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const parsed = parseBody(PostOverrideSchema, body);
+    if (!parsed.ok) return parsed.response;
+
+    const { operation, target, scope, agentId, action, expiresAt, reason } = parsed.data;
+
     const override: OperationOverride = {
-      operation: typeof body.operation === "string" ? body.operation.trim() : "",
-      target: typeof body.target === "string" ? body.target.trim() : undefined,
-      scope: body.scope === "agent" ? "agent" : "global",
-      agentId: typeof body.agentId === "string" ? body.agentId.trim() : undefined,
-      action: body.action === "block" || body.action === "ask" ? body.action : "allow",
-      expiresAt: typeof body.expiresAt === "number" ? body.expiresAt : undefined,
-      reason: typeof body.reason === "string" ? body.reason.trim() : undefined,
+      operation,
+      target,
+      scope,
+      agentId,
+      action,
+      expiresAt,
+      reason,
       operatorId: getOperatorId(),
       visibility: "private",
     };
-    if (!override.operation) {
-      return NextResponse.json({ error: "operation is required" }, { status: 400 });
-    }
+
     await addOperationOverride(override);
     return NextResponse.json({ success: true });
   } catch (err) {
@@ -51,14 +72,15 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const operation = typeof body.operation === "string" ? body.operation.trim() : "";
-    if (!operation) {
-      return NextResponse.json({ error: "operation is required" }, { status: 400 });
-    }
+    const parsed = parseBody(DeleteOverrideSchema, body);
+    if (!parsed.ok) return parsed.response;
+
+    const { operation, target, agentId } = parsed.data;
+
     const removed = await removeOperationOverride({
       operation,
-      target: typeof body.target === "string" ? body.target : undefined,
-      agentId: typeof body.agentId === "string" ? body.agentId : undefined,
+      target,
+      agentId,
     });
     return NextResponse.json({ success: true, removed });
   } catch (err) {

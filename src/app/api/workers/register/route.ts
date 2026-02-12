@@ -2,6 +2,8 @@
 // Returns worker ID and initial config.
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   registerWorker,
   generateDefaultConfig,
@@ -10,13 +12,43 @@ import {
   getWorkersForPair,
   removeWorker,
 } from "@/lib/worker-store";
+import { validateWorkerAuth } from "@/lib/worker-auth";
+
+// ── Zod schema ─────────────────────────────────────────────
+const RegisterWorkerSchema = z.object({
+  pairId: z.string().min(1, "pairId is required"),
+  name: z.string().min(1, "name is required"),
+  aspect: z.string().min(1, "aspect is required"),
+  hostname: z.string().min(1, "hostname is required"),
+  ollamaModel: z.string().min(1, "ollamaModel is required"),
+  platform: z.string().default("unknown"),
+  ollamaUrl: z.string().default("http://localhost:11434"),
+  capabilities: z.array(z.string()).default([]),
+  version: z.string().default("0.1.0"),
+});
 
 // POST: register a new worker (or re-register existing)
 export async function POST(req: NextRequest) {
+  const auth = validateWorkerAuth(req);
+  if (!auth.ok) return auth.response!;
   try {
     const body = await req.json();
+    const parsed = parseBody(RegisterWorkerSchema, body);
+    if (!parsed.ok) return parsed.response;
 
     const {
+      pairId,
+      name,
+      aspect,
+      hostname,
+      ollamaModel,
+      platform,
+      ollamaUrl,
+      capabilities,
+      version,
+    } = parsed.data;
+
+    const worker = await registerWorker({
       pairId,
       name,
       aspect,
@@ -26,27 +58,6 @@ export async function POST(req: NextRequest) {
       ollamaUrl,
       capabilities,
       version,
-    } = body;
-
-    if (!pairId || !name || !aspect || !hostname || !ollamaModel) {
-      return NextResponse.json(
-        {
-          error: "Missing required fields: pairId, name, aspect, hostname, ollamaModel",
-        },
-        { status: 400 }
-      );
-    }
-
-    const worker = await registerWorker({
-      pairId,
-      name,
-      aspect,
-      hostname,
-      platform: platform ?? "unknown",
-      ollamaModel,
-      ollamaUrl: ollamaUrl ?? "http://localhost:11434",
-      capabilities: capabilities ?? [],
-      version: version ?? "0.1.0",
     });
 
     let config = await getWorkerConfig(worker.id);
@@ -70,6 +81,8 @@ export async function POST(req: NextRequest) {
 
 // GET: list workers
 export async function GET(req: NextRequest) {
+  const auth = validateWorkerAuth(req);
+  if (!auth.ok) return auth.response!;
   try {
     const pairId = req.nextUrl.searchParams.get("pairId");
 
@@ -90,6 +103,8 @@ export async function GET(req: NextRequest) {
 
 // DELETE: unregister a worker
 export async function DELETE(req: NextRequest) {
+  const auth = validateWorkerAuth(req);
+  if (!auth.ok) return auth.response!;
   try {
     const workerId = req.nextUrl.searchParams.get("workerId");
     if (!workerId) {

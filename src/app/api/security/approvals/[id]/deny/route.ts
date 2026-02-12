@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { getSecurityMiddleware } from "@/lib/security/security-middleware";
+
+const DenySchema = z.object({
+  deniedBy: z.string().default("dashboard"),
+  reason: z.string().optional(),
+});
 
 /**
  * POST /api/security/approvals/[id]/deny
@@ -12,8 +19,10 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const deniedBy = (body.deniedBy as string) || "dashboard";
-    const reason = body.reason as string | undefined;
+    const parsed = parseBody(DenySchema, body);
+    if (!parsed.ok) return parsed.response;
+
+    const { deniedBy, reason } = parsed.data;
 
     const middleware = getSecurityMiddleware();
     const ok = middleware.deny(id, deniedBy, reason);

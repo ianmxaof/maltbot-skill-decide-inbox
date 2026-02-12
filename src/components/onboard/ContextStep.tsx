@@ -13,6 +13,17 @@ import {
 const PRESET_RSS = [
   { label: "Hacker News", url: "https://hnrss.org/frontpage" },
   { label: "TechCrunch", url: "https://techcrunch.com/feed/" },
+  { label: "The Verge", url: "https://www.theverge.com/rss/index.xml" },
+  { label: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index" },
+  { label: "AI News (MIT)", url: "https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml" },
+  { label: "Lobsters", url: "https://lobste.rs/rss" },
+];
+
+const PRESET_GITHUB = [
+  { label: "vercel/next.js", type: "repo" as const },
+  { label: "langchain-ai/langchain", type: "repo" as const },
+  { label: "anthropics/anthropic-sdk-python", type: "repo" as const },
+  { label: "openai/openai-python", type: "repo" as const },
 ];
 
 const PRESET_MOLTBOOK = ["m/general", "m/infrastructure", "m/devtools", "m/agent-marketplaces"];
@@ -169,6 +180,26 @@ export function ContextStep() {
             <Plus className="w-4 h-4" />
           </button>
         </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {PRESET_GITHUB.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => {
+                if (!githubRepos.includes(p.label)) {
+                  setGithubRepos([...githubRepos, p.label]);
+                }
+              }}
+              className={`px-3 py-1.5 rounded border text-sm ${
+                githubRepos.includes(p.label)
+                  ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400"
+                  : "border-zinc-600 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-2">
           {[...githubRepos, ...githubUsers].map((item, i) => (
             <span
@@ -245,7 +276,13 @@ export function ContextStep() {
       </section>
 
       <section>
-        <h3 className="text-sm font-medium text-zinc-300 mb-3">Moltbook Topics</h3>
+        <h3 className="text-sm font-medium text-zinc-300 mb-1">
+          Moltbook Topics{" "}
+          <span className="text-xs text-zinc-500 font-normal">(optional)</span>
+        </h3>
+        <p className="text-xs text-zinc-500 mb-3">
+          Follow AI agent communities on Moltbook. Requires a Moltbook API key &mdash; you can add this later in Settings.
+        </p>
         <div className="flex flex-wrap gap-2">
           {PRESET_MOLTBOOK.map((topic) => (
             <button

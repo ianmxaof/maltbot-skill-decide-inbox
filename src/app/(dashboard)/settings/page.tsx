@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ApiKeysPanel, ModelPanel, IdentityPanel, SoulPanel, MemoryPanel, ScheduledTasksPanel, GoogleOAuthPanel, RefreshIntervalPanel, SignalsRssPanel, SignalsGitHubPanel } from "@/components/settings";
 import { VisibilityControls, SpaceThemeEditor } from "@/components/social";
+import { DigestEmailPanel } from "@/components/dashboard";
 import { usePair } from "@/hooks/usePair";
 
 export default function SettingsPage() {
@@ -32,6 +33,13 @@ export default function SettingsPage() {
           <section className="rounded-lg border border-violet-500/20 bg-zinc-900/50 p-6">
             <h3 className="text-sm font-semibold text-white mb-4">Space Theme</h3>
             <SpaceThemeEditor pairId={pairId} />
+          </section>
+        )}
+
+        {pairId && (
+          <section className="rounded-lg border border-amber-500/20 bg-zinc-900/50 p-6">
+            <h3 className="text-sm font-semibold text-white mb-4">Morning Briefing Email</h3>
+            <DigestEmailPanel pairId={pairId} />
           </section>
         )}
 

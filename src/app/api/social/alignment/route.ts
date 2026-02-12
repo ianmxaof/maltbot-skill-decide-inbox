@@ -6,8 +6,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { getAlignmentScores } from "@/lib/social-store";
 import { computeAlignmentForPair, recomputeAllAlignments } from "@/lib/alignment-engine";
+
+const AlignmentPostSchema = z.object({
+  pairId: z.string().trim().optional(),
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -39,7 +45,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const pairId = typeof body.pairId === "string" ? body.pairId.trim() : "";
+    const parsed = parseBody(AlignmentPostSchema, body);
+    if (!parsed.ok) return parsed.response;
+
+    const { pairId } = parsed.data;
 
     // If pairId given, compute for that pair only
     if (pairId) {

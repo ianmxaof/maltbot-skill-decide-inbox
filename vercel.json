@@ -11,6 +11,10 @@
     {
       "path": "/api/network/cron?scope=heavy",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/digest/email?all=1",
+      "schedule": "0 8 * * *"
     }
   ]
 }

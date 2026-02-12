@@ -6,7 +6,24 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { getSpaceTheme, setSpaceTheme } from "@/lib/social-store";
+
+const UpdateThemeSchema = z.object({
+  pairId: z.string().trim().min(1, "Missing pairId"),
+  accentColor: z.string().optional(),
+  backgroundStyle: z.string().optional(),
+  gradientFrom: z.string().optional(),
+  gradientTo: z.string().optional(),
+  headerImage: z.string().optional(),
+  layout: z.string().optional(),
+  tagline: z.string().optional(),
+  bioMarkdown: z.string().optional(),
+  pinnedContextIds: z.array(z.string()).optional(),
+  featuredDecisionIds: z.array(z.string()).optional(),
+  customSections: z.any().optional(),
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,34 +48,16 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const pairId = typeof body.pairId === "string" ? body.pairId.trim() : "";
+    const parsed = parseBody(UpdateThemeSchema, body);
+    if (!parsed.ok) return parsed.response;
 
-    if (!pairId) {
-      return NextResponse.json(
-        { success: false, error: "Missing pairId" },
-        { status: 400 }
-      );
-    }
+    const { pairId, ...rest } = parsed.data;
 
-    // Extract valid theme fields
-    const {
-      accentColor, backgroundStyle, gradientFrom, gradientTo,
-      headerImage, layout, tagline, bioMarkdown,
-      pinnedContextIds, featuredDecisionIds, customSections,
-    } = body;
-
+    // Extract valid theme fields (only include defined values)
     const updates: Record<string, unknown> = {};
-    if (accentColor !== undefined) updates.accentColor = accentColor;
-    if (backgroundStyle !== undefined) updates.backgroundStyle = backgroundStyle;
-    if (gradientFrom !== undefined) updates.gradientFrom = gradientFrom;
-    if (gradientTo !== undefined) updates.gradientTo = gradientTo;
-    if (headerImage !== undefined) updates.headerImage = headerImage;
-    if (layout !== undefined) updates.layout = layout;
-    if (tagline !== undefined) updates.tagline = tagline;
-    if (bioMarkdown !== undefined) updates.bioMarkdown = bioMarkdown;
-    if (pinnedContextIds !== undefined) updates.pinnedContextIds = pinnedContextIds;
-    if (featuredDecisionIds !== undefined) updates.featuredDecisionIds = featuredDecisionIds;
-    if (customSections !== undefined) updates.customSections = customSections;
+    for (const [key, value] of Object.entries(rest)) {
+      if (value !== undefined) updates[key] = value;
+    }
 
     const theme = await setSpaceTheme(pairId, updates);
     return NextResponse.json({ success: true, theme });

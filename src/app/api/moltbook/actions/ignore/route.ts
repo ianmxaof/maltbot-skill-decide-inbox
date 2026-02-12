@@ -5,15 +5,20 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { markIgnored } from "@/lib/moltbook-pending";
+
+const IgnoreSchema = z.object({
+  id: z.string().trim().min(1, "Missing id"),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const id = typeof body.id === "string" ? body.id.trim() : "";
-    if (!id) {
-      return NextResponse.json({ error: "Missing id" }, { status: 400 });
-    }
+    const parsed = parseBody(IgnoreSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { id } = parsed.data;
 
     const item = await markIgnored(id);
     if (!item) {

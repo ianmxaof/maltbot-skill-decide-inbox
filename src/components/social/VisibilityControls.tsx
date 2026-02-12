@@ -54,7 +54,7 @@ export function VisibilityControls({ pairId }: VisibilityControlsProps) {
           setSettings(s);
         }
       })
-      .catch(() => {})
+      .catch((e) => console.error("[VisibilityControls] fetch failed:", e))
       .finally(() => setLoading(false));
   }, [pairId]);
 

@@ -17,7 +17,7 @@ export function SecurityAgentRoster() {
     fetch("/api/agents")
       .then((r) => r.json())
       .then((data) => setAgents(data.agents ?? []))
-      .catch(() => setAgents([]));
+      .catch((e) => { console.error("[SecurityAgentRoster] fetch agents failed:", e); setAgents([]); });
   }, []);
 
   if (agents.length === 0) return null;

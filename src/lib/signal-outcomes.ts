@@ -3,36 +3,19 @@
  * Append-only store in .data/signal-outcomes.json.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { SignalOutcome } from "@/types/governance";
 
-const OUTCOMES_PATH = path.join(process.cwd(), ".data", "signal-outcomes.json");
-
-async function ensureDataDir(): Promise<void> {
-  const dir = path.dirname(OUTCOMES_PATH);
-  if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-}
-
 export async function appendSignalOutcome(outcome: SignalOutcome): Promise<void> {
-  await ensureDataDir();
   let items: SignalOutcome[] = [];
-  if (existsSync(OUTCOMES_PATH)) {
-    const raw = await readFile(OUTCOMES_PATH, "utf-8");
-    try {
-      const data = JSON.parse(raw) as { items?: SignalOutcome[] };
-      items = Array.isArray(data?.items) ? data.items : [];
-    } catch {
-      items = [];
-    }
+  try {
+    const data = await kv.get<{ items?: SignalOutcome[] }>("signal-outcomes");
+    items = Array.isArray(data?.items) ? data.items : [];
+  } catch {
+    items = [];
   }
   items.push(outcome);
-  await writeFile(
-    OUTCOMES_PATH,
-    JSON.stringify({ version: 1, items }, null, 2),
-    "utf-8"
-  );
+  await kv.set("signal-outcomes", { version: 1, items });
 }
 
 /** Record one outcome per signal in triggeredBy, or one with decisionId when triggeredBy is empty. */

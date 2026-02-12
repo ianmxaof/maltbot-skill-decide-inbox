@@ -3,9 +3,7 @@
  * Used for personal analytics now and alignment matching later.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import { getActivityStore } from "@/lib/persistence";
 import { getOperationOverrides } from "@/lib/security/operation-overrides";
 import { getTrustScores } from "@/lib/security/trust-scoring";
@@ -27,14 +25,10 @@ export interface GovernanceFingerprint {
   signalSourcesCount: number;
 }
 
-const FINGERPRINTS_PATH = path.join(process.cwd(), ".data", "governance-fingerprints.json");
-
 async function loadAutopilotMode(): Promise<string | undefined> {
-  const autopilotPath = path.join(process.cwd(), ".data", "autopilot.json");
   try {
-    if (!existsSync(autopilotPath)) return undefined;
-    const raw = await readFile(autopilotPath, "utf-8");
-    const data = JSON.parse(raw) as { mode?: string };
+    const data = await kv.get<{ mode?: string }>("autopilot");
+    if (!data) return undefined;
     return typeof data.mode === "string" ? data.mode : undefined;
   } catch {
     return undefined;
@@ -145,27 +139,19 @@ export async function computeFingerprint(
 }
 
 async function saveFingerprint(fingerprint: GovernanceFingerprint): Promise<void> {
-  const dir = path.dirname(FINGERPRINTS_PATH);
-  if (!existsSync(dir)) await mkdir(dir, { recursive: true });
   let data: { fingerprints?: GovernanceFingerprint[] } = {};
-  if (existsSync(FINGERPRINTS_PATH)) {
-    try {
-      const raw = await readFile(FINGERPRINTS_PATH, "utf-8");
-      data = JSON.parse(raw) as { fingerprints?: GovernanceFingerprint[] };
-    } catch {
-      data = {};
-    }
+  try {
+    const existing = await kv.get<{ fingerprints?: GovernanceFingerprint[] }>("governance-fingerprints");
+    if (existing) data = existing;
+  } catch {
+    data = {};
   }
   const list = Array.isArray(data.fingerprints) ? data.fingerprints : [];
   const without = list.filter(
     (f) => !(f.operatorId === fingerprint.operatorId && f.hoursBack === fingerprint.hoursBack)
   );
   without.push(fingerprint);
-  await writeFile(
-    FINGERPRINTS_PATH,
-    JSON.stringify({ version: 1, fingerprints: without }, null, 2),
-    "utf-8"
-  );
+  await kv.set("governance-fingerprints", { version: 1, fingerprints: without });
 }
 
 /**

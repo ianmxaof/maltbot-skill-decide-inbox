@@ -4,9 +4,7 @@
  * when weighted score >= threshold and no recent failure.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 
 export interface TrustScoreEntry {
   operation: string;
@@ -22,7 +20,6 @@ export interface TrustScoreEntry {
   weightedScore?: number;
 }
 
-const DEFAULT_PATH = path.join(process.cwd(), ".data", "trust-scores.json");
 const HALF_LIFE_DAYS = 30; // decay: half weight after 30 days
 const FAILURE_WEIGHT_MULTIPLIER = 3; // failures weigh 3x successes in score
 const DEFAULT_AUTO_APPROVE_THRESHOLD = 5; // weighted score must be >= this to auto-approve
@@ -59,25 +56,12 @@ export function computeWeightedScore(entry: TrustScoreEntry): number {
   return successWeight - failureWeight;
 }
 
-async function ensureDir(): Promise<void> {
-  const dir = path.dirname(DEFAULT_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-}
-
-export async function loadTrustScores(filePath: string = DEFAULT_PATH): Promise<Map<string, TrustScoreEntry>> {
-  if (loaded && filePath === DEFAULT_PATH) {
+export async function loadTrustScores(): Promise<Map<string, TrustScoreEntry>> {
+  if (loaded) {
     return new Map(store);
   }
   try {
-    if (!existsSync(filePath)) {
-      store = new Map();
-      loaded = true;
-      return new Map(store);
-    }
-    const raw = await readFile(filePath, "utf-8");
-    const data = JSON.parse(raw) as { scores?: TrustScoreEntry[] };
+    const data = await kv.get<{ scores?: TrustScoreEntry[] }>("trust-scores");
     const list = Array.isArray(data?.scores) ? data.scores : [];
     store = new Map();
     for (const e of list) {
@@ -106,8 +90,7 @@ export async function loadTrustScores(filePath: string = DEFAULT_PATH): Promise<
   }
 }
 
-export async function saveTrustScores(filePath: string = DEFAULT_PATH): Promise<void> {
-  await ensureDir();
+export async function saveTrustScores(): Promise<void> {
   const list = Array.from(store.values()).map((e) => ({
     operation: e.operation,
     target: e.target,
@@ -118,7 +101,7 @@ export async function saveTrustScores(filePath: string = DEFAULT_PATH): Promise<
     lastSuccessAt: e.lastSuccessAt,
     lastFailureAt: e.lastFailureAt,
   }));
-  await writeFile(filePath, JSON.stringify({ version: 1, scores: list }, null, 2), "utf-8");
+  await kv.set("trust-scores", { version: 1, scores: list });
 }
 
 export async function recordSuccess(

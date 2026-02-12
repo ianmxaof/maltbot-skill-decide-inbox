@@ -5,9 +5,7 @@
  * For production, replace with a proper database and secrets manager.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 
 export type RosterAgent = {
   id: string;
@@ -21,20 +19,11 @@ type RosterFile = {
   version: number;
 };
 
-const ROSTER_PATH = path.join(process.cwd(), ".data", "agents.json");
 const ROSTER_VERSION = 1;
-
-async function ensureDataDir(): Promise<void> {
-  const dir = path.dirname(ROSTER_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-}
 
 async function readRoster(): Promise<RosterFile> {
   try {
-    const raw = await readFile(ROSTER_PATH, "utf-8");
-    const data = JSON.parse(raw) as RosterFile;
+    const data = await kv.get<RosterFile>("agents");
     return data?.agents ? data : { agents: [], version: ROSTER_VERSION };
   } catch {
     return { agents: [], version: ROSTER_VERSION };
@@ -42,8 +31,7 @@ async function readRoster(): Promise<RosterFile> {
 }
 
 async function writeRoster(data: RosterFile): Promise<void> {
-  await ensureDataDir();
-  await writeFile(ROSTER_PATH, JSON.stringify(data, null, 2), "utf-8");
+  await kv.set("agents", data);
 }
 
 function nextId(): string {

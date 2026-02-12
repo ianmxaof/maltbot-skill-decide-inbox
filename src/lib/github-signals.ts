@@ -164,11 +164,11 @@ export async function getGithubSignals(
   const limitUsers = users.slice(0, 5);
   const limitRepos = repos.slice(0, 10);
 
-  const userPromises = limitUsers.map((u) => fetchUserEvents(u.trim()).catch(() => []));
+  const userPromises = limitUsers.map((u) => fetchUserEvents(u.trim()).catch((e) => { console.warn("[github-signals] fetchUserEvents failed for %s:", u, e); return []; }));
   const repoPromises = limitRepos.map((r) => {
     const [owner, repo] = r.trim().split("/");
     if (!owner || !repo) return Promise.resolve([]);
-    return fetchRepoEvents(owner, repo).catch(() => []);
+    return fetchRepoEvents(owner, repo).catch((e) => { console.warn("[github-signals] fetchRepoEvents failed for %s:", r, e); return []; });
   });
 
   const userArrays = await Promise.all(userPromises);

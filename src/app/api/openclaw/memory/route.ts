@@ -5,6 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   readMemoryFile,
   writeMemoryFile,
@@ -25,6 +27,14 @@ const VALID_TYPES: MemoryFileType[] = [
 function isValidType(t: string): t is MemoryFileType {
   return VALID_TYPES.includes(t as MemoryFileType);
 }
+
+const PatchMemorySchema = z.object({
+  type: z.enum(["identity", "soul", "user", "memory", "heartbeat"]),
+  name: z.string().optional(),
+  vibe: z.string().optional(),
+  emoji: z.string().optional(),
+  content: z.string().optional(),
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,33 +60,30 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const type = body?.type;
-    if (!type || !isValidType(type)) {
-      return NextResponse.json(
-        { success: false, error: "Missing or invalid type" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseBody(PatchMemorySchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { type, name, vibe, emoji, content } = parsed.data;
+
     if (type === "identity") {
       if (
-        typeof body.name !== "undefined" ||
-        typeof body.vibe !== "undefined" ||
-        typeof body.emoji !== "undefined"
+        typeof name !== "undefined" ||
+        typeof vibe !== "undefined" ||
+        typeof emoji !== "undefined"
       ) {
         const current = await getIdentity();
         await setIdentity({
-          name: body.name ?? current.name,
-          vibe: body.vibe ?? current.vibe,
-          emoji: body.emoji ?? current.emoji,
+          name: name ?? current.name,
+          vibe: vibe ?? current.vibe,
+          emoji: emoji ?? current.emoji,
         });
         return NextResponse.json({ success: true });
       }
-      if (typeof body.content === "string") {
-        await writeMemoryFile("identity", body.content);
+      if (typeof content === "string") {
+        await writeMemoryFile("identity", content);
         return NextResponse.json({ success: true });
       }
-    } else if (typeof body.content === "string") {
-      await writeMemoryFile(type, body.content);
+    } else if (typeof content === "string") {
+      await writeMemoryFile(type, content);
       return NextResponse.json({ success: true });
     }
     return NextResponse.json(

@@ -7,6 +7,8 @@
 // 4. Returns feedback to the worker
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   isDuplicate,
   markIngested,
@@ -14,8 +16,15 @@ import {
   updateWorkerStatus,
 } from "@/lib/worker-store";
 import { createNetworkActivity } from "@/lib/social-store";
-import type { IngestItem, IngestResponse, IngestItemType } from "@/types/worker";
-import type { NetworkActivityType } from "@/types/social";
+import { recordWorkerIngest as recordDisclosureIngest } from "@/lib/disclosure-store";
+import { createAgentDiscoveryThrottled } from "@/lib/notification-store";
+import { validateWorkerAuth } from "@/lib/worker-auth";
+import {
+  shouldRouteToDecideInbox,
+  mapIngestTypeToActivityType,
+  buildActivitySummary,
+} from "@/lib/ingest-utils";
+import type { IngestItem, IngestResponse } from "@/types/worker";
 
 import { promises as fs } from "fs";
 import path from "path";
@@ -74,73 +83,70 @@ function genId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function shouldRouteToDecideInbox(item: IngestItem): boolean {
-  if (item.urgency === "critical" || item.urgency === "high") return true;
-  if (item.confidence >= 0.7) return true;
-  if (item.urgency === "medium" && item.confidence >= 0.5) return true;
-  if (item.suggestedAction === "escalate") return true;
-  if (item.type === "threat" || item.type === "bug") return true;
-  return false;
-}
+// ── Zod schemas ────────────────────────────────────────────
+const IngestOptionSchema = z.object({
+  label: z.string(),
+  description: z.string(),
+  risk: z.enum(["low", "medium", "high"]),
+});
 
-function mapIngestTypeToActivityType(type: IngestItemType): NetworkActivityType {
-  switch (type) {
-    case "opportunity":
-    case "collaboration":
-      return "signal";
-    case "threat":
-    case "bug":
-      return "agent_action";
-    case "release":
-    case "trend":
-      return "context_change";
-    case "discussion":
-    case "content_idea":
-    case "competitor":
-      return "signal";
-    default:
-      return "agent_action";
-  }
-}
+const IngestItemSchema = z.object({
+  workerId: z.string().min(1, "workerId is required"),
+  pairId: z.string().min(1, "pairId is required"),
+  type: z.enum([
+    "opportunity",
+    "threat",
+    "trend",
+    "discussion",
+    "release",
+    "bug",
+    "content_idea",
+    "competitor",
+    "collaboration",
+  ]),
+  urgency: z.enum(["low", "medium", "high", "critical"]),
+  confidence: z.number(),
+  title: z.string().min(1, "title is required"),
+  summary: z.string(),
+  detail: z.string().optional(),
+  sourceUrl: z.string().optional(),
+  sourceName: z.string(),
+  sourceType: z.enum([
+    "rss_feed",
+    "github_repo",
+    "github_issues",
+    "github_releases",
+    "reddit_subreddit",
+    "hacker_news",
+    "web_page",
+    "twitter_search",
+    "custom_script",
+  ]),
+  suggestedAction: z.enum(["approve", "escalate", "investigate", "ignore"]).optional(),
+  actionRationale: z.string().optional(),
+  options: z.array(IngestOptionSchema).optional(),
+  signalKeys: z.array(z.string()),
+  tags: z.array(z.string()),
+  contentHash: z.string().min(1, "contentHash is required"),
+  discoveredAt: z.string(),
+});
 
-function buildActivitySummary(item: IngestItem): string {
-  const actionVerb: Record<string, string> = {
-    opportunity: "Discovered opportunity",
-    threat: "Flagged threat",
-    trend: "Detected trend",
-    discussion: "Found discussion",
-    release: "Noticed release",
-    bug: "Detected vulnerability",
-    content_idea: "Found content inspiration",
-    competitor: "Spotted competitive signal",
-    collaboration: "Found collaboration opportunity",
-  };
-  return `${actionVerb[item.type] ?? "Surfaced item"}: ${item.title}`;
-}
+const IngestBodySchema = z
+  .union([z.array(IngestItemSchema), IngestItemSchema])
+  .transform((d) => (Array.isArray(d) ? d : [d]));
 
 export async function POST(req: NextRequest) {
+  const auth = validateWorkerAuth(req);
+  if (!auth.ok) return auth.response!;
   try {
     const body = await req.json();
+    const parsed = parseBody(IngestBodySchema, body);
+    if (!parsed.ok) return parsed.response;
 
-    const items: IngestItem[] = Array.isArray(body) ? body : [body];
+    const items: IngestItem[] = parsed.data;
     const results: IngestResponse[] = [];
 
     for (const item of items) {
-      if (
-        !item.workerId ||
-        !item.pairId ||
-        !item.title ||
-        !item.contentHash
-      ) {
-        results.push({
-          accepted: false,
-          reason:
-            "Missing required fields: workerId, pairId, title, contentHash",
-          routedTo: "dropped",
-        });
-        continue;
-      }
-
       const worker = await getWorkerById(item.workerId);
       if (!worker) {
         results.push({
@@ -221,9 +227,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Record in disclosure state and notify
+    const acceptedItems = results.filter((r) => r.accepted);
+    if (acceptedItems.length > 0 && items[0]?.pairId) {
+      await recordDisclosureIngest(items[0].pairId, acceptedItems.length).catch((e) => console.error("[workers/ingest] recordDisclosureIngest failed:", e));
+      await createAgentDiscoveryThrottled(items[0].pairId, acceptedItems.length).catch((e) => console.error("[workers/ingest] createAgentDiscoveryThrottled failed:", e));
+    }
+
     return NextResponse.json({
       results,
-      accepted: results.filter((r) => r.accepted).length,
+      accepted: acceptedItems.length,
       dropped: results.filter((r) => !r.accepted).length,
     });
   } catch (e: unknown) {
@@ -237,6 +250,8 @@ export async function POST(req: NextRequest) {
 
 // GET: read the Decide Queue (for the dashboard)
 export async function GET(req: NextRequest) {
+  const auth = validateWorkerAuth(req);
+  if (!auth.ok) return auth.response!;
   try {
     const pairId = req.nextUrl.searchParams.get("pairId");
     const status = req.nextUrl.searchParams.get("status") ?? "pending";

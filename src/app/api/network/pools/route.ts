@@ -9,6 +9,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   getPoolsForGroup,
   createPool,
@@ -16,6 +18,42 @@ import {
   closePool,
 } from "@/lib/network-store";
 import type { DecisionPool } from "@/types/network";
+
+const CreatePoolSchema = z.object({
+  action: z.literal("create"),
+  groupId: z.string().trim().min(1, "Missing groupId"),
+  title: z.string().trim().min(1, "Missing title"),
+  description: z.string().trim().default(""),
+  options: z
+    .array(z.string().trim().min(1))
+    .min(2, "Provide 2-5 options")
+    .max(5, "Provide 2-5 options"),
+  context: z.string().trim().default(""),
+  sourceUrl: z.string().trim().optional(),
+  sourceType: z.string().trim().optional(),
+  quorum: z.number().default(3),
+  consensusThreshold: z.number().default(0.6),
+  createdBy: z.string().trim().min(1, "Missing createdBy"),
+});
+
+const VotePoolSchema = z.object({
+  action: z.literal("vote"),
+  poolId: z.string().trim().min(1, "Missing poolId"),
+  pairId: z.string().trim().min(1, "Missing pairId"),
+  choiceIndex: z.number().min(0, "choiceIndex must be >= 0"),
+  reasoning: z.string().trim().optional(),
+});
+
+const ClosePoolSchema = z.object({
+  action: z.literal("close"),
+  poolId: z.string().trim().min(1, "Missing poolId"),
+});
+
+const PoolActionSchema = z.discriminatedUnion("action", [
+  CreatePoolSchema,
+  VotePoolSchema,
+  ClosePoolSchema,
+]);
 
 export async function GET(req: NextRequest) {
   try {
@@ -45,48 +83,29 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const action = typeof body.action === "string" ? body.action : "";
+    const parsed = parseBody(PoolActionSchema, body);
+    if (!parsed.ok) return parsed.response;
 
-    if (action === "create") {
-      const groupId = typeof body.groupId === "string" ? body.groupId.trim() : "";
-      const title = typeof body.title === "string" ? body.title.trim() : "";
-      const createdBy = typeof body.createdBy === "string" ? body.createdBy.trim() : "";
+    const data = parsed.data;
 
-      if (!groupId || !title || !createdBy) {
-        return NextResponse.json(
-          { success: false, error: "Missing groupId, title, or createdBy" },
-          { status: 400 }
-        );
-      }
-
-      const options = Array.isArray(body.options)
-        ? body.options.filter((o: unknown): o is string => typeof o === "string" && o.trim().length > 0)
-        : [];
-
-      if (options.length < 2 || options.length > 5) {
-        return NextResponse.json(
-          { success: false, error: "Provide 2-5 options" },
-          { status: 400 }
-        );
-      }
-
+    if (data.action === "create") {
       const pool: DecisionPool = {
         id: `pool_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        groupId,
-        title,
-        description: typeof body.description === "string" ? body.description.trim() : "",
+        groupId: data.groupId,
+        title: data.title,
+        description: data.description,
         status: "open",
         item: {
-          title,
-          context: typeof body.context === "string" ? body.context.trim() : "",
-          options,
-          sourceUrl: typeof body.sourceUrl === "string" ? body.sourceUrl.trim() : undefined,
-          sourceType: typeof body.sourceType === "string" ? body.sourceType.trim() : undefined,
+          title: data.title,
+          context: data.context,
+          options: data.options,
+          sourceUrl: data.sourceUrl,
+          sourceType: data.sourceType,
         },
         votes: [],
-        quorum: typeof body.quorum === "number" ? body.quorum : 3,
-        consensusThreshold: typeof body.consensusThreshold === "number" ? body.consensusThreshold : 0.6,
-        createdBy,
+        quorum: data.quorum,
+        consensusThreshold: data.consensusThreshold,
+        createdBy: data.createdBy,
         createdAt: new Date().toISOString(),
       };
 
@@ -94,22 +113,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, pool });
     }
 
-    if (action === "vote") {
-      const poolId = typeof body.poolId === "string" ? body.poolId.trim() : "";
-      const pairId = typeof body.pairId === "string" ? body.pairId.trim() : "";
-      const choiceIndex = typeof body.choiceIndex === "number" ? body.choiceIndex : -1;
-
-      if (!poolId || !pairId || choiceIndex < 0) {
-        return NextResponse.json(
-          { success: false, error: "Missing poolId, pairId, or choiceIndex" },
-          { status: 400 }
-        );
-      }
-
-      const pool = await addVote(poolId, {
-        pairId,
-        choiceIndex,
-        reasoning: typeof body.reasoning === "string" ? body.reasoning.trim() : undefined,
+    if (data.action === "vote") {
+      const pool = await addVote(data.poolId, {
+        pairId: data.pairId,
+        choiceIndex: data.choiceIndex,
+        reasoning: data.reasoning,
         votedAt: new Date().toISOString(),
       });
 
@@ -123,16 +131,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, pool });
     }
 
-    if (action === "close") {
-      const poolId = typeof body.poolId === "string" ? body.poolId.trim() : "";
-      if (!poolId) {
-        return NextResponse.json(
-          { success: false, error: "Missing poolId" },
-          { status: 400 }
-        );
-      }
-
-      const pool = await closePool(poolId);
+    if (data.action === "close") {
+      const pool = await closePool(data.poolId);
       if (!pool) {
         return NextResponse.json(
           { success: false, error: "Pool not found or already closed" },

@@ -4,6 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import {
   listPairs,
   getPair,
@@ -12,6 +14,45 @@ import {
   setActivePairId,
 } from "@/lib/agent-pair-store";
 import type { CreatePairInput } from "@/lib/agent-pair-store";
+import { completeOnboarding } from "@/lib/disclosure-store";
+
+const CreatePairSchema = z.object({
+  humanName: z.string().trim().min(1, "humanName is required"),
+  agentName: z.string().trim().default("Agent"),
+  agentPowerCoreId: z.string().optional(),
+  operatingPhilosophy: z
+    .enum(["ship-while-sleep", "review-before-deploy", "collaborative", "research-only"])
+    .default("review-before-deploy"),
+  autonomyTiers: z
+    .object({
+      tier1: z.array(z.string()).default([]),
+      tier2: z.array(z.string()).default([]),
+      tier3: z.array(z.string()).default([]),
+    })
+    .default({
+      tier1: ["file organization", "research & drafts", "memory maintenance"],
+      tier2: ["code changes", "documentation updates"],
+      tier3: ["public posts", "financial decisions", "external communications"],
+    }),
+  activityPattern: z.any().optional(),
+  humanPreferences: z.any().optional(),
+  visibility: z.enum(["private", "unlisted", "public"]).default("private"),
+  contextSources: z
+    .object({
+      githubRepos: z.array(z.string()).default([]),
+      githubUsers: z.array(z.string()).default([]),
+      rssUrls: z.array(z.string()).default([]),
+      moltbookTopics: z.array(z.string()).default([]),
+    })
+    .default({
+      githubRepos: [],
+      githubUsers: [],
+      rssUrls: [],
+      moltbookTopics: [],
+    }),
+  soulMd: z.string().optional(),
+  publicNarrative: z.string().optional(),
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,29 +85,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as Record<string, unknown>;
-    const input: CreatePairInput = {
-      humanName: String(body.humanName ?? "").trim(),
-      agentName: String(body.agentName ?? "Agent").trim(),
-      agentPowerCoreId: typeof body.agentPowerCoreId === "string" ? body.agentPowerCoreId : undefined,
-      operatingPhilosophy: (body.operatingPhilosophy as CreatePairInput["operatingPhilosophy"]) ?? "review-before-deploy",
-      autonomyTiers: (body.autonomyTiers as CreatePairInput["autonomyTiers"]) ?? {
-        tier1: ["file organization", "research & drafts", "memory maintenance"],
-        tier2: ["code changes", "documentation updates"],
-        tier3: ["public posts", "financial decisions", "external communications"],
-      },
-      activityPattern: body.activityPattern as CreatePairInput["activityPattern"],
-      humanPreferences: body.humanPreferences as CreatePairInput["humanPreferences"],
-      visibility: (body.visibility as CreatePairInput["visibility"]) ?? "private",
-      contextSources: (body.contextSources as CreatePairInput["contextSources"]) ?? {
-        githubRepos: [],
-        githubUsers: [],
-        rssUrls: [],
-        moltbookTopics: [],
-      },
-      soulMd: typeof body.soulMd === "string" ? body.soulMd : undefined,
-      publicNarrative: typeof body.publicNarrative === "string" ? body.publicNarrative : undefined,
-    };
+    const body = await req.json();
+    const parsed = parseBody(CreatePairSchema, body);
+    if (!parsed.ok) return parsed.response;
+
+    const input: CreatePairInput = parsed.data;
 
     if (!input.humanName) {
       return NextResponse.json({ success: false, error: "humanName is required" }, { status: 400 });
@@ -74,6 +97,8 @@ export async function POST(req: NextRequest) {
 
     const pair = await createPair(input);
     await setActivePairId(pair.id);
+    // Initialize disclosure state — transition from onboarding → activation
+    await completeOnboarding(pair.id).catch((e) => console.error("[pair] completeOnboarding failed:", e));
     return NextResponse.json({ success: true, pair });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to create pair";

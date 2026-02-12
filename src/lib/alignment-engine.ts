@@ -17,7 +17,7 @@ import {
 // ─── Similarity Functions ───────────────────────────────────
 
 /** Jaccard similarity: |intersection| / |union| */
-function jaccard(a: string[], b: string[]): number {
+export function jaccard(a: string[], b: string[]): number {
   const setA = new Set(a);
   const setB = new Set(b);
   const intersection = [...setA].filter(x => setB.has(x));
@@ -27,13 +27,13 @@ function jaccard(a: string[], b: string[]): number {
 }
 
 /** Normalized difference: 1 - |a - b| / max(a, b, 1) */
-function rateSimilarity(a: number, b: number): number {
+export function rateSimilarity(a: number, b: number): number {
   const max = Math.max(a, b, 0.001);
   return 1 - Math.abs(a - b) / max;
 }
 
 /** Hour overlap: how many active hours are shared */
-function hourOverlap(a: number[], b: number[]): number {
+export function hourOverlap(a: number[], b: number[]): number {
   const setA = new Set(a);
   const setB = new Set(b);
   const shared = [...setA].filter(x => setB.has(x));
@@ -44,7 +44,7 @@ function hourOverlap(a: number[], b: number[]): number {
 
 // ─── Core Alignment Computation ─────────────────────────────
 
-function computeDimensions(
+export function computeDimensions(
   a: GovernanceFingerprint,
   b: GovernanceFingerprint
 ): AlignmentDimensions {
@@ -63,7 +63,7 @@ function computeDimensions(
   };
 }
 
-function computeOverallScore(dims: AlignmentDimensions): number {
+export function computeOverallScore(dims: AlignmentDimensions): number {
   // Weighted average — context and decisions matter most
   const weights = {
     contextOverlap: 0.35,

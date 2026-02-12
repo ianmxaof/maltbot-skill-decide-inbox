@@ -14,7 +14,7 @@ export default function NetworkGroupsPage() {
       .then((data) => {
         if (data.success) setGroups(data.groups ?? []);
       })
-      .catch(() => {})
+      .catch((e) => console.error("[network/groups] fetch failed:", e))
       .finally(() => setLoading(false));
   }, []);
 

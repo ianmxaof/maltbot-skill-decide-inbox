@@ -12,6 +12,7 @@ import { getOperatorId } from "@/lib/operator";
 import { loadOperationOverrides, resolveOverride } from "./operation-overrides";
 import { shouldAutoApprove } from "./trust-scoring";
 import { analyzeAgentAction, isActionRiskAnalysisEnabled } from "./action-risk-analysis";
+import { appendImmutableAudit } from "./immutable-audit";
 
 export interface SecurityContext {
   userId: string;
@@ -550,6 +551,17 @@ export class SecurityMiddleware {
       this.auditLog = this.auditLog.slice(-10000);
     }
 
+    // Write to immutable, hash-chained audit trail (external to agent data)
+    appendImmutableAudit("operation_check", {
+      result,
+      operation: `${operation.category}:${operation.action}`,
+      target: operation.target,
+      userId: context.userId,
+      agentId: context.agentId,
+      source: context.source,
+      reason,
+    }).catch((e) => console.error("[immutable-audit] append failed:", e));
+
     // Persist typed entries for learning loop and reports
     const opKey = `${operation.category}:${operation.action}`;
     const target = operation.target ?? "";
@@ -565,7 +577,7 @@ export class SecurityMiddleware {
           reason: reason ?? result,
           operatorId,
         } as TypedActivityEntry)
-        .catch(() => {});
+        .catch((e) => console.error("[security-middleware] append operation_blocked failed:", e));
     } else if (result === "approved") {
       getActivityStore()
         .append({
@@ -576,7 +588,7 @@ export class SecurityMiddleware {
           approvedBy: context.userId,
           operatorId,
         } as TypedActivityEntry)
-        .catch(() => {});
+        .catch((e) => console.error("[security-middleware] append operation_approved failed:", e));
     }
   }
 

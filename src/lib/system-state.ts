@@ -3,12 +3,8 @@
  * Persists to .data/system-state.json. When mode === 'halted', nothing autonomous runs.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { SystemState as SystemStateType } from "@/types/governance";
-
-const STATE_PATH = path.join(process.cwd(), ".data", "system-state.json");
 
 const DEFAULT_STATE: SystemStateType = {
   mode: "active",
@@ -16,21 +12,11 @@ const DEFAULT_STATE: SystemStateType = {
 
 let cached: SystemStateType | null = null;
 
-async function ensureDataDir(): Promise<void> {
-  const dir = path.dirname(STATE_PATH);
-  if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-}
-
 export async function loadSystemState(): Promise<SystemStateType> {
   if (cached) return cached;
   try {
-    if (!existsSync(STATE_PATH)) {
-      cached = { ...DEFAULT_STATE };
-      return cached;
-    }
-    const raw = await readFile(STATE_PATH, "utf-8");
-    const data = JSON.parse(raw) as SystemStateType;
-    if (data.mode && ["active", "supervised", "halted"].includes(data.mode)) {
+    const data = await kv.get<SystemStateType>("system-state");
+    if (data && data.mode && ["active", "supervised", "halted"].includes(data.mode)) {
       cached = { ...DEFAULT_STATE, ...data };
       return cached;
     }
@@ -42,8 +28,7 @@ export async function loadSystemState(): Promise<SystemStateType> {
 }
 
 export async function saveSystemState(state: SystemStateType): Promise<void> {
-  await ensureDataDir();
-  await writeFile(STATE_PATH, JSON.stringify(state, null, 2), "utf-8");
+  await kv.set("system-state", state);
   cached = state;
 }
 

@@ -7,8 +7,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { getGroups, getGroupsForPair } from "@/lib/network-store";
 import { claimGroup } from "@/lib/group-engine";
+
+const ClaimGroupSchema = z.object({
+  groupId: z.string().trim().min(1, "Missing groupId"),
+  claimerPairId: z.string().trim().min(1, "Missing claimerPairId"),
+  name: z.string().trim().optional(),
+  description: z.string().trim().optional(),
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,22 +40,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const groupId = typeof body.groupId === "string" ? body.groupId.trim() : "";
-    const claimerPairId = typeof body.claimerPairId === "string" ? body.claimerPairId.trim() : "";
+    const parsed = parseBody(ClaimGroupSchema, body);
+    if (!parsed.ok) return parsed.response;
 
-    if (!groupId || !claimerPairId) {
-      return NextResponse.json(
-        { success: false, error: "Missing groupId or claimerPairId" },
-        { status: 400 }
-      );
-    }
+    const { groupId, claimerPairId, name, description } = parsed.data;
 
-    const group = await claimGroup(
-      groupId,
-      claimerPairId,
-      typeof body.name === "string" ? body.name.trim() : undefined,
-      typeof body.description === "string" ? body.description.trim() : undefined
-    );
+    const group = await claimGroup(groupId, claimerPairId, name, description);
 
     if (!group) {
       return NextResponse.json(

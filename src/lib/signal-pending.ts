@@ -3,9 +3,7 @@
  * Persists to .data/signal-pending.json. Merged into Decide Inbox via GET /api/decide/pending.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 
 export type PendingSignalSource = "moltbook" | "rss" | "github";
 
@@ -23,7 +21,6 @@ export type PendingSignalItem = {
   visibility?: "private" | "semi_public" | "network_emergent";
 };
 
-const PENDING_PATH = path.join(process.cwd(), ".data", "signal-pending.json");
 const store = new Map<string, PendingSignalItem>();
 let loaded = false;
 let idCounter = 1;
@@ -32,20 +29,11 @@ function nextId(): string {
   return `signal-${Date.now()}-${idCounter++}`;
 }
 
-async function ensureDataDir(): Promise<void> {
-  const dir = path.dirname(PENDING_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-}
-
 async function loadStore(): Promise<void> {
   if (loaded) return;
   loaded = true;
   try {
-    if (!existsSync(PENDING_PATH)) return;
-    const raw = await readFile(PENDING_PATH, "utf-8");
-    const data = JSON.parse(raw) as { items: PendingSignalItem[] };
+    const data = await kv.get<{ items: PendingSignalItem[] }>("signal-pending");
     const items = Array.isArray(data?.items) ? data.items : [];
     store.clear();
     for (const item of items) {
@@ -59,13 +47,8 @@ async function loadStore(): Promise<void> {
 }
 
 async function saveStore(): Promise<void> {
-  await ensureDataDir();
   const items = Array.from(store.values()).filter((i) => i.status === "pending");
-  await writeFile(
-    PENDING_PATH,
-    JSON.stringify({ version: 1, items }, null, 2),
-    "utf-8"
-  );
+  await kv.set("signal-pending", { version: 1, items });
 }
 
 export type AddSignalInput = {

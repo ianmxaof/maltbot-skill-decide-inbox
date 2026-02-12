@@ -3,8 +3,7 @@
 // Give it a task, go to bed, wake up to a comprehensive report in your inbox
 
 import { ConsensusEngine } from './consensus-engine';
-import fs from 'fs';
-import path from 'path';
+import { kv } from '@/lib/db';
 
 export interface ResearchTask {
   id: string;
@@ -71,8 +70,6 @@ const RESEARCH_PHASES = [
   'delivery',
 ];
 
-const TASKS_FILE = path.join(process.cwd(), '.research-tasks.json');
-
 function serializeTask(task: ResearchTask): Record<string, unknown> {
   return {
     ...task,
@@ -118,15 +115,10 @@ function deserializeTask(raw: Record<string, unknown>): ResearchTask {
   } as ResearchTask;
 }
 
-function loadTasks(): Map<string, ResearchTask> {
+async function loadTasks(): Promise<Map<string, ResearchTask>> {
   try {
-    if (typeof process === 'undefined' || !fs.existsSync(TASKS_FILE)) {
-      return new Map();
-    }
-    const data = JSON.parse(fs.readFileSync(TASKS_FILE, 'utf-8')) as Record<
-      string,
-      Record<string, unknown>
-    >;
+    const data = await kv.get<Record<string, Record<string, unknown>>>('research-tasks');
+    if (!data) return new Map();
     const map = new Map<string, ResearchTask>();
     for (const [id, raw] of Object.entries(data)) {
       map.set(id, deserializeTask(raw));
@@ -137,13 +129,13 @@ function loadTasks(): Map<string, ResearchTask> {
   }
 }
 
-function saveTasks(tasks: Map<string, ResearchTask>): void {
+async function saveTasks(tasks: Map<string, ResearchTask>): Promise<void> {
   try {
     const obj: Record<string, Record<string, unknown>> = {};
     Array.from(tasks.entries()).forEach(([id, task]) => {
       obj[id] = serializeTask(task);
     });
-    fs.writeFileSync(TASKS_FILE, JSON.stringify(obj, null, 2));
+    await kv.set('research-tasks', obj);
   } catch {
     // Skip in serverless or read-only env
   }
@@ -151,13 +143,19 @@ function saveTasks(tasks: Map<string, ResearchTask>): void {
 
 export class OvernightResearchEngine {
   private consensusEngine: ConsensusEngine;
-  private tasks: Map<string, ResearchTask>;
+  private tasks: Map<string, ResearchTask> = new Map();
   private onUpdate?: (task: ResearchTask) => void;
+  private initialized = false;
 
   constructor(onUpdate?: (task: ResearchTask) => void) {
     this.consensusEngine = new ConsensusEngine();
     this.onUpdate = onUpdate;
-    this.tasks = loadTasks();
+  }
+
+  private async ensureLoaded(): Promise<void> {
+    if (this.initialized) return;
+    this.tasks = await loadTasks();
+    this.initialized = true;
   }
 
   async createTask(params: {
@@ -168,6 +166,7 @@ export class OvernightResearchEngine {
     notifyEmail: string;
     notifyMoltbook?: boolean;
   }): Promise<ResearchTask> {
+    await this.ensureLoaded();
     const task: ResearchTask = {
       id: `research-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       ...params,
@@ -184,18 +183,19 @@ export class OvernightResearchEngine {
 
     this.tasks.set(task.id, task);
     this.log(task, 'info', 'queued', `Research task created: ${task.title}`);
-    saveTasks(this.tasks);
+    await saveTasks(this.tasks);
     return task;
   }
 
   async startTask(taskId: string): Promise<void> {
+    await this.ensureLoaded();
     const task = this.tasks.get(taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
 
     task.status = 'running';
     task.startedAt = new Date();
     this.emit(task);
-    saveTasks(this.tasks);
+    await saveTasks(this.tasks);
 
     try {
       await this.runPhase(task, 'planning', async () => {
@@ -247,7 +247,7 @@ export class OvernightResearchEngine {
     }
 
     this.emit(task);
-    saveTasks(this.tasks);
+    await saveTasks(this.tasks);
   }
 
   private async runPhase<T>(
@@ -258,14 +258,14 @@ export class OvernightResearchEngine {
     task.progress.currentPhase = phase;
     this.log(task, 'info', phase, `Starting phase: ${phase}`);
     this.emit(task);
-    saveTasks(this.tasks);
+    await saveTasks(this.tasks);
 
     const result = await fn();
 
     task.progress.phasesCompleted++;
     this.log(task, 'success', phase, `Completed phase: ${phase}`);
     this.emit(task);
-    saveTasks(this.tasks);
+    await saveTasks(this.tasks);
     return result;
   }
 
@@ -466,20 +466,23 @@ Full synthesis and analysis data available in attached artifacts.
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  getTask(taskId: string): ResearchTask | undefined {
+  async getTask(taskId: string): Promise<ResearchTask | undefined> {
+    await this.ensureLoaded();
     return this.tasks.get(taskId);
   }
 
-  getAllTasks(): ResearchTask[] {
+  async getAllTasks(): Promise<ResearchTask[]> {
+    await this.ensureLoaded();
     return Array.from(this.tasks.values());
   }
 
-  cancelTask(taskId: string): boolean {
+  async cancelTask(taskId: string): Promise<boolean> {
+    await this.ensureLoaded();
     const task = this.tasks.get(taskId);
     if (task && task.status === 'running') {
       task.status = 'paused';
       this.emit(task);
-      saveTasks(this.tasks);
+      await saveTasks(this.tasks);
       return true;
     }
     return false;

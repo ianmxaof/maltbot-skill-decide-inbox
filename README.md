@@ -6,40 +6,64 @@ Reframe: not “a powerful daemon pretending to be a chatbot” — **a lab with
 
 ---
 
-## Dashboard tabs
+## Navigation (progressive disclosure)
 
-All sections live under one dashboard with tab navigation:
+The platform uses **5 primary tabs** that progressively reveal features as the user's activity earns them. On day 1, a new user sees Home and Inbox. By day 30, they see the full platform. Features unlock based on decisions made and days active — not time alone.
+
+### Primary tabs (always in view after onboarding)
 
 | Tab | Purpose |
 |-----|--------|
-| **Dashboard (Home)** | Project-centric home. Agent status, activity heatmap, recent actions, Decide Inbox preview, quick actions. |
-| **Direct to Agent** | Send natural-language instructions to OpenClaw. Agent interprets, reasons, and executes. Uses `/api/openclaw/agent/run`. |
-| **Network** | Social feed from followed pairs. Chronological activity from your network. |
-| **Decide Inbox** | Single human bottleneck. What changed · why it matters · options (A/B/C) · risk · recommendation. Ignore / Approve / Deeper analysis. Uses `/api/decide/*`. |
-| **Discover** | Alignment-based discovery. Find pairs that govern similarly; browse public profiles. |
-| **Pulse** | Network heartbeat: activity volume, velocity, collective posture, trending signals, anomalies. |
-| **Groups** | Emergent groups (auto-detected by fingerprint similarity). Claim groups, manage decision pools. |
-| **Signals** | Signal convergences — escalation clusters, tracking waves, decision alignment across the network. |
-| **Activity** | Autonomous actions across your agent: kept, reverted, modified outcomes with reasoning and tags. |
-| **Workers** | Local agent worker fleet. Workers (RSS, Ollama) feed discoveries into your Decide Inbox. See `nightly-build-worker/`. |
-| **Moltbook Hub** | PowerCoreAi Moltbook: agent roster, signals, pending proposals, activity feed, autopilot. Uses `/api/moltbook/*`. |
-| **Security** | Credential vault (AES-256), content sanitizer, anomaly detection, approval gateway, audit log. See `docs/SECURITY-LAYER.md`. |
-| **Command Center (CC)** | Society of Minds (multi-model consensus), Overnight Research, Skill Forge, Agent Fleet. Uses `/api/consensus`, `/api/research`, `/api/skills`, `/api/fleet`. See `docs/COMMAND-CENTER.md`. |
-| **Settings** | API keys, model preferences, visibility, space themes, OpenClaw config. |
+| **Home** | Dashboard landing pad. Decide Inbox preview, worker status, quick stats. Progressive sections appear as stages unlock. |
+| **Inbox** | The Decide Inbox. Single human bottleneck. Approve / Ignore / Escalate. The core product. |
+| **Network** | Social feed, Discover, Pulse, Groups, Signals — all as sub-views within one tab. Unlocks at `networked` stage. |
+| **Space** | Your public profile (MySpace-style). Settings integrated as space config. Unlocks at `daily_driver` stage. |
+| **Workers** | Worker fleet, Activity feed, Direct to Agent — all in one tab. Always visible after onboarding. |
+
+### Disclosure stages
+
+| Stage | Trigger | Unlocks |
+|-------|---------|---------|
+| `onboarding` | Completing 4-step wizard | — |
+| `activation` | Onboarding complete | Inbox, Workers |
+| `daily_driver` | 3+ decisions | Space, Direct to Agent |
+| `networked` | 7+ days active or 30+ decisions | Network Feed, Discover |
+| `deep` | 14+ days active or 75+ decisions | Pulse, Groups, Signals |
+| `full_citizen` | 21+ days active or 100+ decisions | Command Center, Security Vault |
+
+### Sub-features (nested, not top-level)
+
+- **Discover, Pulse, Groups, Signals** → sub-views within Network
+- **Activity, Direct to Agent** → sections within Workers
+- **Security, Command Center** → accessible from Settings or unlocked at `full_citizen`
+- **Moltbook Hub** → appears in Workers when `MOLTBOOK_API_KEY` is set
+
+All existing routes still work if navigated to directly — no bookmarks break.
 
 ---
 
 ## New features (latest integrations)
 
-- **Auth & onboarding** — NextAuth with Google OAuth. Sign in at `/signin`. New users flow through a 4-step onboarding wizard (context sources, personality, operating philosophy, visibility). Pair ID created on completion; landing redirects accordingly. Optional dev bypass: `AUTH_DEV_BYPASS_SECRET`, `NEXT_PUBLIC_DEV_BYPASS`. Env: `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`.
-- **Social layer** — Follow/unfollow pairs, visibility settings (private/semi-public/network-emergent), space themes. Public profile pages (`/space/[pairId]`) — MySpace-style, driven by real agent behavior. Social feed from followed pairs. Decide handlers project decisions to the feed. APIs: `/api/social/follow`, `feed`, `visibility`, `theme`, `alignment`, `space/[pairId]`. See `docs/SOCIAL-INTEGRATION-GUIDE.md`, `docs/SOCIAL-LAYER-ARCHITECTURE.md`.
-- **Network effects** — Emergent groups (BFS clustering on fingerprint similarity), signal convergence detection, network pulse (velocity, posture, trending signals), decision pools (group-scoped voting with quorum/consensus). APIs: `/api/network/groups`, `signals`, `pulse`, `pools`, `cron`. Cron: every 15 min (fast), hourly (heavy). See `docs/NETWORK-EFFECTS-INTEGRATION.md`.
-- **Worker fleet** — Local agent workers run on your hardware (Ollama + Node.js). RSS watchers, GitHub monitors; evaluate with local LLMs, push discoveries to Decide Inbox. Aspects: Golem, Prometheus, Odin, Hermes. Workers dashboard at `/workers`; APIs: `/api/workers/register`, `config`, `heartbeat`, `ingest`. Standalone package: `nightly-build-worker/`.
-- **Activity feed** — Autonomous actions with outcomes (kept/reverted/modified). API: `/api/activity`. Page: `/activity`.
-- **Discover & landing** — `/api/discover` serves real public pairs. Landing page shows featured pairs; "See Public Profiles" links to `/network/discover`. Pair management via `/api/pair`, `/api/pair/[pairId]`.
-- **Security layer** — Credential vault (AES-256-GCM), content sanitizer, anomaly detector, approval gateway, audit log. Optional `VAULT_MASTER_PASSWORD`. See `docs/SECURITY-LAYER.md`.
-- **Command Center** — Multi-model consensus, Overnight Research, Skill Forge, Agent Fleet. See `docs/COMMAND-CENTER.md`.
-- **Decide API & Moltbook** — `/api/decide/*`, Moltbook heartbeat, executor. OpenClaw skills via `/api/openclaw/skills/*`.
+- **Progressive disclosure** — 5 primary tabs instead of 14. Features unlock based on user activity (decisions, days active). State machine in `src/lib/disclosure-store.ts`; API: `/api/disclosure`. Celebrations and "new" badges on stage transitions. See `PROGRESSIVE-DISCLOSURE-PLAN.md`.
+- **First-scan activation** — On onboarding completion, the platform immediately scans the user's declared RSS feeds and GitHub repos server-side (no Ollama needed), populates the Decide Inbox with 3-5 real items within 60 seconds. API: `POST /api/workers/first-scan`.
+- **In-app notifications** — Bell icon in header with unread count. Three notification types: agent discoveries (throttled 1/hr), feature unlocks (on stage transition), network convergence. Store: `src/lib/notification-store.ts`; API: `/api/notifications`.
+- **Cooling period** — After first decisions, a dismissible banner tells the user their agent is running and to come back tomorrow. Prevents day-1 overwhelm.
+- **Auth & onboarding** — NextAuth with Google OAuth, 4-step wizard, pair creation. First-scan fires on completion.
+- **Social layer** — Follow, visibility, space themes, public profiles. APIs: `/api/social/*`. See `docs/SOCIAL-INTEGRATION-GUIDE.md`.
+- **Network effects** — Groups, pulse, signals, decision pools. APIs: `/api/network/*`. See `docs/NETWORK-EFFECTS-INTEGRATION.md`.
+- **Worker fleet** — Ollama + Node.js workers. RSS/GitHub watchers. See `nightly-build-worker/`.
+- **Security, Command Center, Moltbook** — Still available; accessed via Settings or unlocked progressively.
+
+### Infrastructure (latest)
+
+- **Database abstraction layer** — All 25+ stores migrated from raw filesystem to a unified `kv` abstraction (`src/lib/db`). In dev: reads/writes `.data/*.json` files (same as before). In production: uses Turso (libSQL at the edge) for persistent storage. Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to enable. Schema auto-creates on first use.
+- **Immutable audit trail** — Hash-chained, append-only JSONL log in `.audit/`. Every security check, permission grant/revoke, and spec lifecycle event is recorded with SHA-256 chain verification. Optional webhook forwarding (`AUDIT_WEBHOOK_URL`). API: `/api/security/immutable-audit`.
+- **Task specs** — Structured constraint definitions for agent tasks. Templates (research, content, social, code review, monitoring, custom), time limits, success/failure criteria, forbidden operations. API: `/api/task-specs`. UI: SpecBuilder on Workers page.
+- **Timed permissions** — Time-limited, usage-capped approvals that auto-revoke. Swept on every heartbeat. Full audit trail. API: `/api/security/permissions`. UI: PermissionsManager on Workers page.
+- **Morning briefing / daily digest** — Generates health score, decision stats, security overview, audit integrity, active permissions, task specs, worker activity. API: `/api/digest`. UI: MorningBriefing panel on Home page.
+- **Email digest** — Sends morning briefing as HTML email via Resend. Subscription management in Settings. Cron: daily at 8 AM UTC. API: `/api/digest/email`.
+- **Production security headers** — X-Frame-Options, HSTS, CSP, Permissions-Policy, X-Content-Type-Options in production builds.
+- **Landing page** — Public-facing page with positioning, feature cards, the daily loop, and CTA. Visible to non-authenticated visitors.
 
 ---
 
@@ -192,6 +216,7 @@ The dashboard talks to OpenClaw only via Next.js API routes. The browser never c
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | Google OAuth (create Web Client in GCP Console). Redirect URI: `{origin}/api/auth/callback/google`. |
 | `AUTH_DEV_BYPASS_SECRET`, `NEXT_PUBLIC_DEV_BYPASS` | Optional. Dev bypass to sign in without Google. |
 | `DEV_RESET_ONBOARDING`, `NEXT_PUBLIC_DEV_RESET_ONBOARDING` | Optional. Clear pair and onboarding draft on dev server restart. |
+| `WORKER_API_SECRET` | Optional. Shared secret for worker API auth. When set, all `/api/workers/*` endpoints require `Authorization: Bearer <secret>`. Workers send this via `PLATFORM_API_KEY`. |
 | `MOLTBOOK_API_KEY` | PowerCoreAi Moltbook API key (moltbook_sk_...). For Moltbook Hub and `npm run moltbook:whoami`. |
 | `VAULT_MASTER_PASSWORD` | Optional. Enables credential vault (Security tab). Min 16 chars; agent never sees raw keys. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY` | Optional. For Command Center multi-model consensus; at least one enables consensus. |
@@ -199,6 +224,11 @@ The dashboard talks to OpenClaw only via Next.js API routes. The browser never c
 | `OPENCLAW_GATEWAY_URL` | Optional. e.g. `http://127.0.0.1:18789`. When set with token, adapter may use HTTP for health/tools. |
 | `OPENCLAW_GATEWAY_TOKEN` | Required when using HTTP. |
 | `OPENCLAW_CLI_TIMEOUT_MS` | Optional. Default 15000 ms for most ops; status uses 5 s so the UI does not hang when the Gateway is down. |
+| `TURSO_DATABASE_URL` | Production database. Turso (libSQL). Sign up at https://turso.tech. Without this, uses filesystem (`.data/`). |
+| `TURSO_AUTH_TOKEN` | Auth token for Turso database. |
+| `RESEND_API_KEY` | Optional. Enables email digest (morning briefing). Sign up at https://resend.com. |
+| `DIGEST_FROM_EMAIL` | Optional. Sender email for digest. Default: `nightly@thenightlybuild.dev`. |
+| `AUDIT_WEBHOOK_URL` | Optional. Forward immutable audit entries to an external service. |
 
 ### Gateway control (start / status / restart)
 

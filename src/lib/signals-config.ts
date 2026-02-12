@@ -2,12 +2,8 @@
  * Config for Signals panel: RSS URLs. Stored in .data/signals.json.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { Visibility } from "@/types/governance";
-
-const SIGNALS_PATH = path.join(process.cwd(), ".data", "signals.json");
 
 export type SignalsConfig = {
   rssUrls?: string[];
@@ -21,9 +17,8 @@ const DEFAULT: SignalsConfig = { rssUrls: [], githubUsers: [], githubRepos: [] }
 
 export async function readSignalsConfig(): Promise<SignalsConfig> {
   try {
-    if (!existsSync(SIGNALS_PATH)) return DEFAULT;
-    const raw = await readFile(SIGNALS_PATH, "utf-8");
-    const data = JSON.parse(raw) as SignalsConfig;
+    const data = await kv.get<SignalsConfig>("signals");
+    if (!data) return DEFAULT;
     return {
       rssUrls: Array.isArray(data.rssUrls) ? data.rssUrls : [],
       githubUsers: Array.isArray(data.githubUsers) ? data.githubUsers : [],
@@ -37,23 +32,11 @@ export async function readSignalsConfig(): Promise<SignalsConfig> {
 }
 
 export async function writeSignalsConfig(config: SignalsConfig): Promise<void> {
-  const dir = path.dirname(SIGNALS_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-  await writeFile(
-    SIGNALS_PATH,
-    JSON.stringify(
-      {
-        rssUrls: config.rssUrls ?? [],
-        githubUsers: config.githubUsers ?? [],
-        githubRepos: config.githubRepos ?? [],
-        operatorId: config.operatorId,
-        visibility: config.visibility ?? "private",
-      },
-      null,
-      2
-    ),
-    "utf-8"
-  );
+  await kv.set("signals", {
+    rssUrls: config.rssUrls ?? [],
+    githubUsers: config.githubUsers ?? [],
+    githubRepos: config.githubRepos ?? [],
+    operatorId: config.operatorId,
+    visibility: config.visibility ?? "private",
+  });
 }

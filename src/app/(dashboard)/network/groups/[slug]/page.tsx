@@ -30,11 +30,11 @@ export default function GroupDetailPage() {
               .then((pData) => {
                 if (pData.success) setPools(pData.pools ?? []);
               })
-              .catch(() => {});
+              .catch((e) => console.error("[network/groups/slug] fetch pools failed:", e));
           }
         }
       })
-      .catch(() => {})
+      .catch((e) => console.error("[network/groups/slug] fetch groups failed:", e))
       .finally(() => setLoading(false));
   }, [slug]);
 

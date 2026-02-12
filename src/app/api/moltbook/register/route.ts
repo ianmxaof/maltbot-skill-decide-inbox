@@ -8,24 +8,29 @@
  */
 
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
+
+const RegisterSchema = z.object({
+  name: z.string().trim().min(1, "Missing or invalid agent name"),
+  description: z.string().trim().default(""),
+});
 
 const MOLTBOOK_REGISTER = "https://www.moltbook.com/api/v1/agents/register";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, description } = body;
-
-    if (!name || typeof name !== "string") {
-      return NextResponse.json({ error: "Missing or invalid agent name" }, { status: 400 });
-    }
+    const parsed = parseBody(RegisterSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const { name, description } = parsed.data;
 
     const res = await fetch(MOLTBOOK_REGISTER, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: name.trim(),
-        description: typeof description === "string" ? description.trim() : "",
+        name,
+        description,
       }),
     });
 

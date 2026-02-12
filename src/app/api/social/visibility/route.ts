@@ -6,7 +6,20 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody } from "@/lib/validate";
 import { getVisibilitySettings, setVisibilitySettings } from "@/lib/social-store";
+
+const UpdateVisibilitySchema = z.object({
+  pairId: z.string().trim().min(1, "Missing pairId"),
+  contextSources: z.any().optional(),
+  decisionPatterns: z.any().optional(),
+  agentConfig: z.any().optional(),
+  activityFeed: z.any().optional(),
+  governanceFingerprint: z.any().optional(),
+  signalFeeds: z.any().optional(),
+  skills: z.any().optional(),
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,25 +44,16 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const pairId = typeof body.pairId === "string" ? body.pairId.trim() : "";
+    const parsed = parseBody(UpdateVisibilitySchema, body);
+    if (!parsed.ok) return parsed.response;
 
-    if (!pairId) {
-      return NextResponse.json(
-        { success: false, error: "Missing pairId" },
-        { status: 400 }
-      );
-    }
+    const { pairId, ...rest } = parsed.data;
 
-    // Extract only valid visibility fields
-    const { contextSources, decisionPatterns, agentConfig, activityFeed, governanceFingerprint, signalFeeds, skills } = body;
+    // Extract only valid visibility fields (only include truthy values)
     const updates: Record<string, unknown> = {};
-    if (contextSources) updates.contextSources = contextSources;
-    if (decisionPatterns) updates.decisionPatterns = decisionPatterns;
-    if (agentConfig) updates.agentConfig = agentConfig;
-    if (activityFeed) updates.activityFeed = activityFeed;
-    if (governanceFingerprint) updates.governanceFingerprint = governanceFingerprint;
-    if (signalFeeds) updates.signalFeeds = signalFeeds;
-    if (skills) updates.skills = skills;
+    for (const [key, value] of Object.entries(rest)) {
+      if (value) updates[key] = value;
+    }
 
     const settings = await setVisibilitySettings(pairId, updates);
     return NextResponse.json({ success: true, settings });

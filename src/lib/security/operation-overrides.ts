@@ -3,9 +3,7 @@
  * Persisted to .data/operation-overrides.json.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import type { Visibility } from "@/types/governance";
 
 export interface OperationOverride {
@@ -20,24 +18,13 @@ export interface OperationOverride {
   visibility?: Visibility; // default "private"
 }
 
-const DEFAULT_PATH = path.join(process.cwd(), ".data", "operation-overrides.json");
-
 let overrides: OperationOverride[] = [];
 let loaded = false;
 
-async function ensureDir(): Promise<void> {
-  const dir = path.dirname(DEFAULT_PATH);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-}
-
-export async function loadOperationOverrides(filePath: string = DEFAULT_PATH): Promise<OperationOverride[]> {
-  if (loaded && filePath === DEFAULT_PATH) return overrides;
+export async function loadOperationOverrides(): Promise<OperationOverride[]> {
+  if (loaded) return overrides;
   try {
-    if (!existsSync(filePath)) return [];
-    const raw = await readFile(filePath, "utf-8");
-    const data = JSON.parse(raw) as { overrides?: OperationOverride[] };
+    const data = await kv.get<{ overrides?: OperationOverride[] }>("operation-overrides");
     overrides = Array.isArray(data?.overrides) ? data.overrides : [];
     loaded = true;
     return overrides;
@@ -47,13 +34,11 @@ export async function loadOperationOverrides(filePath: string = DEFAULT_PATH): P
 }
 
 export async function saveOperationOverrides(
-  list: OperationOverride[],
-  filePath: string = DEFAULT_PATH
+  list: OperationOverride[]
 ): Promise<void> {
-  await ensureDir();
   overrides = list;
   loaded = true;
-  await writeFile(filePath, JSON.stringify({ version: 1, overrides: list }, null, 2), "utf-8");
+  await kv.set("operation-overrides", { version: 1, overrides: list });
 }
 
 export async function getOperationOverrides(): Promise<OperationOverride[]> {

@@ -190,7 +190,7 @@ export class AnomalyDetector {
           baseline: baselineRate,
           operatorId: getOperatorId(),
         } as TypedActivityEntry)
-        .catch(() => {});
+        .catch((e) => console.error("[anomaly-detector] append rate_spike failed:", e));
       return this.createAnomaly(
         'rate_spike',
         'warning',
@@ -420,7 +420,7 @@ export class AnomalyDetector {
         severity,
         operatorId: getOperatorId(),
       } as TypedActivityEntry)
-      .catch(() => {});
+      .catch((e) => console.error("[anomaly-detector] append anomaly_detected failed:", e));
 
     // Auto-pause on emergency
     if (severity === 'emergency' && this.config.autoPause) {

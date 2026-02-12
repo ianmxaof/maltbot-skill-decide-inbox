@@ -2,8 +2,7 @@
 // File-based JSON persistence for social layer data
 // Follows the same pattern as existing stores in the codebase
 
-import { promises as fs } from 'fs';
-import path from 'path';
+import { kv } from "@/lib/db";
 import {
   VisibilitySettings,
   DEFAULT_VISIBILITY,
@@ -15,30 +14,16 @@ import {
   GovernanceFingerprint,
 } from '@/types/social';
 
-const DATA_DIR = path.join(process.cwd(), '.data');
-
 // ─── Helpers ────────────────────────────────────────────────
 
-async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
-
 async function readJson<T>(filename: string, fallback: T): Promise<T> {
-  try {
-    const raw = await fs.readFile(path.join(DATA_DIR, filename), 'utf-8');
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+  const key = filename.replace(/\.json$/, "");
+  return await kv.get<T>(key) ?? fallback;
 }
 
 async function writeJson<T>(filename: string, data: T): Promise<void> {
-  await ensureDir();
-  await fs.writeFile(
-    path.join(DATA_DIR, filename),
-    JSON.stringify(data, null, 2),
-    'utf-8'
-  );
+  const key = filename.replace(/\.json$/, "");
+  await kv.set(key, data);
 }
 
 // ─── Visibility Settings ────────────────────────────────────
