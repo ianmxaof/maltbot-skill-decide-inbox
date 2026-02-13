@@ -8,6 +8,7 @@ import { z } from "zod";
 import { parseBody } from "@/lib/validate";
 import { getPairById, updatePair } from "@/lib/agent-pair-store";
 import type { UpdatePairInput } from "@/lib/agent-pair-store";
+import type { ContextSources } from "@/types/agent-pair";
 
 const UpdatePairSchema = z.object({
   humanName: z.string().optional(),
@@ -27,6 +28,18 @@ const UpdatePairSchema = z.object({
   soulMd: z.string().optional(),
   activityPattern: z.any().optional(),
 });
+
+function normalizeContextSources(
+  raw: z.infer<typeof UpdatePairSchema>["contextSources"]
+): ContextSources | undefined {
+  if (raw == null) return undefined;
+  return {
+    githubRepos: raw.githubRepos ?? [],
+    githubUsers: raw.githubUsers ?? [],
+    rssUrls: raw.rssUrls ?? [],
+    moltbookTopics: raw.moltbookTopics ?? [],
+  };
+}
 
 export async function GET(
   _req: NextRequest,
@@ -55,7 +68,9 @@ export async function PATCH(
     const parsed = parseBody(UpdatePairSchema, body);
     if (!parsed.ok) return parsed.response;
 
-    const input: UpdatePairInput = parsed.data;
+    const { contextSources: rawContext, ...rest } = parsed.data;
+    const contextSources = normalizeContextSources(rawContext);
+    const input: UpdatePairInput = { ...rest, ...(contextSources != null && { contextSources }) };
 
     const pair = await updatePair(pairId, input);
     if (!pair) {
