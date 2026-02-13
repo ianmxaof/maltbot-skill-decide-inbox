@@ -98,16 +98,33 @@ Respond with ONLY valid JSON, no markdown fences, no explanation:
 
   if (finalScore < config.minRelevance) return null;
 
+  const validActions = ["approve", "escalate", "investigate", "ignore"] as const;
+  const validUrgencies = ["low", "medium", "high", "critical"] as const;
+  const action =
+    typeof parsed.suggestedAction === "string" &&
+    validActions.includes(parsed.suggestedAction as (typeof validActions)[number])
+      ? (parsed.suggestedAction as (typeof validActions)[number])
+      : "investigate";
+  const urgency =
+    typeof parsed.urgency === "string" &&
+    validUrgencies.includes(parsed.urgency as (typeof validUrgencies)[number])
+      ? (parsed.urgency as (typeof validUrgencies)[number])
+      : scoreToUrgency(finalScore);
+
   return {
     ...item,
     score: Math.round(finalScore * 100) / 100,
-    reason: parsed.reason ?? "Model evaluation",
-    suggestedAction: parsed.suggestedAction ?? "investigate",
-    tags: parsed.tags ?? [],
-    signalKeys: parsed.signalKeys ?? extractSignalKeys(item),
-    itemType: parsed.itemType ?? "trend",
-    urgency: parsed.urgency ?? scoreToUrgency(finalScore),
-    summary: parsed.summary ?? item.title,
+    reason: typeof parsed.reason === "string" ? parsed.reason : "Model evaluation",
+    suggestedAction: action,
+    tags: Array.isArray(parsed.tags)
+      ? parsed.tags.filter((t): t is string => typeof t === "string")
+      : [],
+    signalKeys: Array.isArray(parsed.signalKeys)
+      ? parsed.signalKeys.filter((s): s is string => typeof s === "string")
+      : extractSignalKeys(item),
+    itemType: typeof parsed.itemType === "string" ? parsed.itemType : "trend",
+    urgency,
+    summary: typeof parsed.summary === "string" ? parsed.summary : item.title,
   };
 }
 
