@@ -1,20 +1,8 @@
 {
   "crons": [
-    {
-      "path": "/api/moltbook/heartbeat",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/network/cron?scope=fast",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/network/cron?scope=heavy",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/digest/email?all=1",
-      "schedule": "0 8 * * *"
-    }
+    { "path": "/api/moltbook/heartbeat", "schedule": "0 9 * * *" },
+    { "path": "/api/network/cron?scope=fast", "schedule": "0 10 * * *" },
+    { "path": "/api/network/cron?scope=heavy", "schedule": "0 11 * * *" },
+    { "path": "/api/digest/email?all=1", "schedule": "0 8 * * *" }
   ]
 }

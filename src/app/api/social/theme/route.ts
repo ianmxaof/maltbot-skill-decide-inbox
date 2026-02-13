@@ -20,6 +20,8 @@ const UpdateThemeSchema = z.object({
   layout: z.string().optional(),
   tagline: z.string().optional(),
   bioMarkdown: z.string().optional(),
+  bulletin: z.string().optional(),
+  bulletinUpdatedAt: z.string().optional(),
   pinnedContextIds: z.array(z.string()).optional(),
   featuredDecisionIds: z.array(z.string()).optional(),
   customSections: z.any().optional(),

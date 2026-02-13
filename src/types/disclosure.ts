@@ -87,13 +87,13 @@ export const STAGE_TRANSITIONS: Record<DisclosureStage, StageTransition> = {
     next: 'activation',
     conditions: () => true,
     trigger: 'onboarding_complete',
-    unlocks: ['inbox', 'workers'],
+    unlocks: ['inbox', 'workers', 'space'],
   },
   activation: {
     next: 'daily_driver',
     conditions: (s) => s.totalDecisions >= 3,
     trigger: 'first_3_decisions',
-    unlocks: ['space', 'direct_to_agent'],
+    unlocks: ['direct_to_agent'],
   },
   daily_driver: {
     next: 'networked',

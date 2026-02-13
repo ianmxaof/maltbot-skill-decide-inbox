@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Layout } from "lucide-react";
 import { NotificationBell } from "./NotificationBell";
 import { usePair } from "@/hooks/usePair";
+
+const isDev = typeof process !== "undefined" && process.env.NODE_ENV === "development";
 
 export function DashboardHeaderAuth() {
   const { data: session, status } = useSession();
@@ -24,6 +27,16 @@ export function DashboardHeaderAuth() {
 
   return (
     <div className="flex items-center gap-2">
+      {isDev && (
+        <Link
+          href="/?preview=landing"
+          className="p-2 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+          title="Preview landing page"
+          aria-label="Preview landing page"
+        >
+          <Layout className="w-4 h-4" />
+        </Link>
+      )}
       <NotificationBell pairId={activePairId} />
       <span className="flex items-center gap-1.5 text-xs text-zinc-400 max-w-[180px] truncate" title={session.user.email ?? undefined}>
         {img ? (

@@ -42,6 +42,9 @@ export interface SpaceTheme {
   layout: SpaceLayout;
   tagline: string;
   bioMarkdown: string;
+  /** MySpace-style bulletin: short message visible on your Space and in network feed */
+  bulletin: string;
+  bulletinUpdatedAt?: string;
   pinnedContextIds: string[];
   featuredDecisionIds: string[];
   customSections: CustomSection[];
@@ -62,6 +65,7 @@ export const DEFAULT_THEME: Omit<SpaceTheme, 'pairId' | 'updatedAt'> = {
   layout: 'default',
   tagline: '',
   bioMarkdown: '',
+  bulletin: '',
   pinnedContextIds: [],
   featuredDecisionIds: [],
   customSections: [],

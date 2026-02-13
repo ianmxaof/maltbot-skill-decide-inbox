@@ -20,7 +20,9 @@ export default function DashboardLayout({
         </div>
         <DashboardTabs />
       </header>
-      {children}
+      <div className="pb-20 sm:pb-0">
+        {children}
+      </div>
     </div>
   );
 }

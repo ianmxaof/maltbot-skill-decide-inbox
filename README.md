@@ -56,7 +56,7 @@ All existing routes still work if navigated to directly — no bookmarks break.
 
 ### Infrastructure (latest)
 
-- **Database abstraction layer** — All 25+ stores migrated from raw filesystem to a unified `kv` abstraction (`src/lib/db`). In dev: reads/writes `.data/*.json` files (same as before). In production: uses Turso (libSQL at the edge) for persistent storage. Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to enable. Schema auto-creates on first use.
+- **Database abstraction layer** — All 25+ stores migrated from raw filesystem to a unified `kv` abstraction (`src/lib/db`). In dev: reads/writes `.data/*.json` files. In production: uses **Supabase** (recommended) or Turso. Set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (run `docs/supabase-schema.sql` once in Supabase SQL Editor), or `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`.
 - **Immutable audit trail** — Hash-chained, append-only JSONL log in `.audit/`. Every security check, permission grant/revoke, and spec lifecycle event is recorded with SHA-256 chain verification. Optional webhook forwarding (`AUDIT_WEBHOOK_URL`). API: `/api/security/immutable-audit`.
 - **Task specs** — Structured constraint definitions for agent tasks. Templates (research, content, social, code review, monitoring, custom), time limits, success/failure criteria, forbidden operations. API: `/api/task-specs`. UI: SpecBuilder on Workers page.
 - **Timed permissions** — Time-limited, usage-capped approvals that auto-revoke. Swept on every heartbeat. Full audit trail. API: `/api/security/permissions`. UI: PermissionsManager on Workers page.
@@ -224,8 +224,10 @@ The dashboard talks to OpenClaw only via Next.js API routes. The browser never c
 | `OPENCLAW_GATEWAY_URL` | Optional. e.g. `http://127.0.0.1:18789`. When set with token, adapter may use HTTP for health/tools. |
 | `OPENCLAW_GATEWAY_TOKEN` | Required when using HTTP. |
 | `OPENCLAW_CLI_TIMEOUT_MS` | Optional. Default 15000 ms for most ops; status uses 5 s so the UI does not hang when the Gateway is down. |
-| `TURSO_DATABASE_URL` | Production database. Turso (libSQL). Sign up at https://turso.tech. Without this, uses filesystem (`.data/`). |
-| `TURSO_AUTH_TOKEN` | Auth token for Turso database. |
+| `SUPABASE_URL` | Production DB (recommended). Supabase project URL. Run `docs/supabase-schema.sql` once. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key (Dashboard → Settings → API). |
+| `TURSO_DATABASE_URL` | Alternative: Turso (libSQL). Without any DB vars, uses filesystem (`.data/`). |
+| `TURSO_AUTH_TOKEN` | Auth token for Turso (if using Turso). |
 | `RESEND_API_KEY` | Optional. Enables email digest (morning briefing). Sign up at https://resend.com. |
 | `DIGEST_FROM_EMAIL` | Optional. Sender email for digest. Default: `nightly@thenightlybuild.dev`. |
 | `AUDIT_WEBHOOK_URL` | Optional. Forward immutable audit entries to an external service. |

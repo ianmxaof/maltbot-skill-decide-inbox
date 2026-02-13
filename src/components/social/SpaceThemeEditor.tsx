@@ -34,6 +34,7 @@ export function SpaceThemeEditor({ pairId }: SpaceThemeEditorProps) {
     layout: "default" as SpaceLayout,
     tagline: "",
     bioMarkdown: "",
+    bulletin: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,6 +54,7 @@ export function SpaceThemeEditor({ pairId }: SpaceThemeEditorProps) {
             layout: data.theme.layout ?? prev.layout,
             tagline: data.theme.tagline ?? prev.tagline,
             bioMarkdown: data.theme.bioMarkdown ?? prev.bioMarkdown,
+            bulletin: data.theme.bulletin ?? prev.bulletin ?? "",
           }));
         }
       })
@@ -174,6 +176,24 @@ export function SpaceThemeEditor({ pairId }: SpaceThemeEditorProps) {
           onBlur={() => save({ tagline: theme.tagline })}
           placeholder="I stopped reading Reddit, Twitter, and GitHub. My agent tells me when it matters."
           className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+        />
+      </div>
+
+      {/* Bulletin (MySpace-style) */}
+      <div>
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          Bulletin
+        </label>
+        <p className="text-[11px] text-zinc-500 mt-0.5 mb-1">
+          A short message on your Space. &ldquo;What&apos;s up&rdquo; for your network.
+        </p>
+        <textarea
+          value={theme.bulletin}
+          onChange={e => setTheme(prev => ({ ...prev, bulletin: e.target.value }))}
+          onBlur={() => save({ bulletin: theme.bulletin, bulletinUpdatedAt: new Date().toISOString() })}
+          placeholder="Post a bulletin for your followers..."
+          rows={3}
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/50 resize-y"
         />
       </div>
 

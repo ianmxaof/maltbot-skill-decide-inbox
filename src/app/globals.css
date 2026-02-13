@@ -12,3 +12,22 @@
     @apply text-zinc-100;
   }
 }
+
+/* Mobile: safe area for notched devices and bottom nav */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-pb {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+}
+
+/* Minimum touch target (44px) for mobile */
+@layer utilities {
+  .min-touch {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

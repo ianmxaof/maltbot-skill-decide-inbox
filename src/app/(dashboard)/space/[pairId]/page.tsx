@@ -105,6 +105,23 @@ export default function PublicSpacePage() {
           )}
         </div>
 
+        {/* Bulletin (MySpace-style) */}
+        {(theme.bulletin ?? "").trim() && (
+          <div className="mt-4 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+            <p className="text-xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1">
+              Bulletin
+            </p>
+            <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">
+              {(theme.bulletin ?? "").trim()}
+            </p>
+            {theme.bulletinUpdatedAt && (
+              <p className="text-[10px] text-zinc-500 mt-2">
+                Updated {new Date(theme.bulletinUpdatedAt).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Bio */}
         {theme.bioMarkdown && (
           <div className="text-sm text-zinc-400 mt-4 leading-relaxed max-w-2xl">
