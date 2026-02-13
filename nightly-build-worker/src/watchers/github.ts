@@ -124,7 +124,7 @@ export async function checkRepos(
   }
 
   if (seenHashes.size > 1000) {
-    const arr = [...seenHashes];
+    const arr = Array.from(seenHashes);
     seenHashes.clear();
     arr.slice(-500).forEach((h) => seenHashes.add(h));
   }

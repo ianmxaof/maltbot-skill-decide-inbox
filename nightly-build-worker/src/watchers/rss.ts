@@ -132,7 +132,7 @@ export async function checkFeed(
     }
 
     if (state.seenHashes.size > 500) {
-      const arr = [...state.seenHashes];
+      const arr = Array.from(state.seenHashes);
       state.seenHashes = new Set(arr.slice(-500));
     }
 
