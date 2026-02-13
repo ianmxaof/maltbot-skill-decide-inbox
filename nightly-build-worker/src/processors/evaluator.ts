@@ -219,5 +219,5 @@ function extractSignalKeys(item: RawItem): string[] {
     }
   }
 
-  return [...new Set(keys)];
+  return Array.from(new Set(keys));
 }
