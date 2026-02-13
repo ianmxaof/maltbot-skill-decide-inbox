@@ -144,12 +144,21 @@ export async function getPublicPairs(): Promise<AgentHumanPair[]> {
 
 export type CreatePairInput = Omit<
   AgentHumanPair,
-  "id" | "createdAt" | "updatedAt" | "trustMetrics" | "recentAutonomousActions" | "valueCreated"
+  | "id"
+  | "createdAt"
+  | "updatedAt"
+  | "trustMetrics"
+  | "recentAutonomousActions"
+  | "valueCreated"
+  | "activityPattern"
+  | "humanPreferences"
 > & {
   id?: string;
   trustMetrics?: AgentHumanPair["trustMetrics"];
   recentAutonomousActions?: AgentHumanPair["recentAutonomousActions"];
   valueCreated?: AgentHumanPair["valueCreated"];
+  activityPattern?: AgentHumanPair["activityPattern"];
+  humanPreferences?: AgentHumanPair["humanPreferences"];
 };
 
 export async function createPair(input: CreatePairInput): Promise<AgentHumanPair> {
