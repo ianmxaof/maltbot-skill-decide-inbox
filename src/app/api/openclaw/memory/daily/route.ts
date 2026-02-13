@@ -15,7 +15,7 @@ import {
 
 const PatchDailySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Missing or invalid date (use YYYY-MM-DD)"),
-  content: z.string({ required_error: "Missing content" }),
+  content: z.string().min(1, "Missing content"),
 });
 
 export async function GET(req: NextRequest) {
