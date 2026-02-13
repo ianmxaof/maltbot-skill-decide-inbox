@@ -79,7 +79,10 @@ export class PlatformClient {
 
   async register(
     payload: RegisterPayload
-  ): Promise<{ worker: { id: string }; config: { configVersion: number } }> {
+  ): Promise<{
+    worker: { id: string };
+    config: { configVersion: number; watchers?: unknown[] };
+  }> {
     const res = await fetch(`${this.baseUrl}/api/workers/register`, {
       method: "POST",
       headers: this.headers(),
