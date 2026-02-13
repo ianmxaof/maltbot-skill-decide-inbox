@@ -233,7 +233,7 @@ function buildKeywords(pair: NonNullable<Awaited<ReturnType<typeof getPairById>>
     }
   }
 
-  return [...keys];
+  return Array.from(keys);
 }
 
 function scoreItem(
