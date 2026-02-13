@@ -1,9 +1,10 @@
+import { OnboardLayout } from "@/components/onboard/OnboardLayout";
 import { AgentConfigStep } from "@/components/onboard/AgentConfigStep";
 
 export default function OnboardStep2Page() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <OnboardLayout step={2} totalSteps={4}>
       <AgentConfigStep />
-    </div>
+    </OnboardLayout>
   );
 }

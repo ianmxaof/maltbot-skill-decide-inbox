@@ -1,9 +1,10 @@
+import { OnboardLayout } from "@/components/onboard/OnboardLayout";
 import { ContextStep } from "@/components/onboard/ContextStep";
 
 export default function OnboardStep1Page() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <OnboardLayout step={1} totalSteps={4}>
       <ContextStep />
-    </div>
+    </OnboardLayout>
   );
 }

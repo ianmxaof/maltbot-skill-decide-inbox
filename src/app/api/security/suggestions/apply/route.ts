@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     let suggestion: SuggestedRule | null = null;
     if (suggestionObj && typeof suggestionObj === "object") {
-      suggestion = suggestionObj as SuggestedRule;
+      suggestion = suggestionObj as unknown as SuggestedRule;
     } else if (typeof id === "string") {
       const all = await getSuggestedGuardrails(24);
       suggestion = all.find((s) => s.id === id) ?? null;

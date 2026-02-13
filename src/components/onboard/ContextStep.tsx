@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Github, Rss, Plus, Trash2 } from "lucide-react";
+import { Github, Rss, Plus, X, Hash, ChevronRight } from "lucide-react";
 import { LivePreviewCard } from "./LivePreviewCard";
 import {
   getOnboardDraft,
@@ -129,202 +129,277 @@ export function ContextStep() {
   const canContinue = totalSources >= 1;
 
   return (
-    <div className="space-y-8">
-      <section>
-        <h2 className="text-xl font-semibold text-white">
-          Step 1 of 4: What Are You Interested In?
-        </h2>
-        <p className="mt-1 text-zinc-400">
+    <div>
+      {/* ── Header ──────────────────────────────────── */}
+      <div className="text-center mb-10">
+        <p className="text-sm font-semibold uppercase tracking-wider text-amber-400 mb-3">
+          Step 1 of 4
+        </p>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+          What Are You Interested In?
+        </h1>
+        <p className="text-zinc-400 max-w-lg mx-auto">
           Your public profile will show what you care about. Choose sources to monitor.
         </p>
-      </section>
+      </div>
 
-      <section>
-        <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Github className="w-4 h-4" />
-          GitHub
-        </h3>
-        <div className="flex gap-2 mb-2">
-          <input
-            type="text"
-            value={newRepo}
-            onChange={(e) => setNewRepo(e.target.value)}
-            placeholder="owner/repo (e.g. vercel/next.js)"
-            className="flex-1 rounded border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500"
-            onKeyDown={(e) => e.key === "Enter" && addRepo()}
-          />
-          <button
-            type="button"
-            onClick={addRepo}
-            disabled={!newRepo.trim()}
-            className="px-3 py-2 rounded border border-zinc-600 bg-zinc-800 text-sm text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={newUser}
-            onChange={(e) => setNewUser(e.target.value)}
-            placeholder="GitHub username"
-            className="flex-1 rounded border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500"
-            onKeyDown={(e) => e.key === "Enter" && addUser()}
-          />
-          <button
-            type="button"
-            onClick={addUser}
-            disabled={!newUser.trim()}
-            className="px-3 py-2 rounded border border-zinc-600 bg-zinc-800 text-sm text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {PRESET_GITHUB.map((p) => (
-            <button
-              key={p.label}
-              type="button"
-              onClick={() => {
-                if (!githubRepos.includes(p.label)) {
-                  setGithubRepos([...githubRepos, p.label]);
-                }
-              }}
-              className={`px-3 py-1.5 rounded border text-sm ${
-                githubRepos.includes(p.label)
-                  ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400"
-                  : "border-zinc-600 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {[...githubRepos, ...githubUsers].map((item, i) => (
-            <span
-              key={`${item}-${i}`}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-zinc-800 text-sm text-zinc-300"
-            >
-              {item}
+      {/* ── Content ─────────────────────────────────── */}
+      <div className="space-y-6">
+        {/* GitHub Section */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 sm:p-8">
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="w-8 h-8 rounded-lg border border-zinc-700 bg-zinc-800 flex items-center justify-center">
+              <Github className="w-4 h-4 text-zinc-300" />
+            </div>
+            <h3 className="text-base font-semibold text-white">GitHub</h3>
+          </div>
+          <p className="text-sm text-zinc-500 mb-5 ml-[42px]">
+            Track repositories and users for updates.
+          </p>
+
+          <div className="space-y-3 mb-5">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newRepo}
+                onChange={(e) => setNewRepo(e.target.value)}
+                placeholder="owner/repo (e.g. vercel/next.js)"
+                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20 transition"
+                onKeyDown={(e) => e.key === "Enter" && addRepo()}
+              />
               <button
                 type="button"
-                onClick={() =>
-                  githubRepos.includes(item) ? removeRepo(githubRepos.indexOf(item)) : removeUser(githubUsers.indexOf(item))
-                }
-                className="text-zinc-500 hover:text-red-400"
+                onClick={addRepo}
+                disabled={!newRepo.trim()}
+                className="px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 hover:border-zinc-600 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-zinc-800 disabled:hover:text-zinc-400 disabled:hover:border-zinc-700 transition"
               >
-                <Trash2 className="w-3 h-3" />
+                <Plus className="w-4 h-4" />
               </button>
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Rss className="w-4 h-4" />
-          News and Blogs
-        </h3>
-        <div className="flex gap-2 mb-2">
-          <input
-            type="url"
-            value={newRss}
-            onChange={(e) => {
-              setNewRss(e.target.value);
-              setRssError(null);
-            }}
-            placeholder="Enter RSS URL"
-            className="flex-1 rounded border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500"
-            onKeyDown={(e) => e.key === "Enter" && addRss()}
-          />
-          <button
-            type="button"
-            onClick={() => addRss()}
-            disabled={!newRss.trim()}
-            className="px-3 py-2 rounded border border-zinc-600 bg-zinc-800 text-sm text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-        {rssError && <p className="text-sm text-red-400 mb-2">{rssError}</p>}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {PRESET_RSS.map((p) => (
-            <button
-              key={p.url}
-              type="button"
-              onClick={() => addRss(p.url)}
-              className="px-3 py-1.5 rounded border border-zinc-600 bg-zinc-800/50 text-sm text-zinc-400 hover:bg-zinc-700"
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {rssUrls.map((url, i) => (
-            <span
-              key={`${url}-${i}`}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-zinc-800 text-sm text-zinc-300 truncate max-w-[200px]"
-            >
-              {url}
-              <button type="button" onClick={() => removeRss(i)} className="text-zinc-500 hover:text-red-400 shrink-0">
-                <Trash2 className="w-3 h-3" />
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newUser}
+                onChange={(e) => setNewUser(e.target.value)}
+                placeholder="GitHub username"
+                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20 transition"
+                onKeyDown={(e) => e.key === "Enter" && addUser()}
+              />
+              <button
+                type="button"
+                onClick={addUser}
+                disabled={!newUser.trim()}
+                className="px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 hover:border-zinc-600 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-zinc-800 disabled:hover:text-zinc-400 disabled:hover:border-zinc-700 transition"
+              >
+                <Plus className="w-4 h-4" />
               </button>
-            </span>
-          ))}
-        </div>
-      </section>
+            </div>
+          </div>
 
-      <section>
-        <h3 className="text-sm font-medium text-zinc-300 mb-1">
-          Moltbook Topics{" "}
-          <span className="text-xs text-zinc-500 font-normal">(optional)</span>
-        </h3>
-        <p className="text-xs text-zinc-500 mb-3">
-          Follow AI agent communities on Moltbook. Requires a Moltbook API key &mdash; you can add this later in Settings.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {PRESET_MOLTBOOK.map((topic) => (
+          {/* Presets */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {PRESET_GITHUB.map((p) => {
+              const selected = githubRepos.includes(p.label);
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => {
+                    if (!selected) {
+                      setGithubRepos([...githubRepos, p.label]);
+                    } else {
+                      setGithubRepos(githubRepos.filter((r) => r !== p.label));
+                    }
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition ${
+                    selected
+                      ? "border border-amber-500/40 bg-amber-500/15 text-amber-400"
+                      : "border border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700 hover:border-zinc-600"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected items */}
+          {(githubRepos.length > 0 || githubUsers.length > 0) && (
+            <div className="flex flex-wrap gap-2 pt-3 border-t border-zinc-800/50">
+              {[...githubRepos, ...githubUsers].map((item, i) => (
+                <span
+                  key={`${item}-${i}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-sm text-zinc-300"
+                >
+                  {item}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      githubRepos.includes(item)
+                        ? removeRepo(githubRepos.indexOf(item))
+                        : removeUser(githubUsers.indexOf(item))
+                    }
+                    className="text-zinc-500 hover:text-red-400 transition"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* News & Blogs Section */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 sm:p-8">
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="w-8 h-8 rounded-lg border border-zinc-700 bg-zinc-800 flex items-center justify-center">
+              <Rss className="w-4 h-4 text-zinc-300" />
+            </div>
+            <h3 className="text-base font-semibold text-white">News & Blogs</h3>
+          </div>
+          <p className="text-sm text-zinc-500 mb-5 ml-[42px]">
+            Add RSS feeds to stay current on topics you care about.
+          </p>
+
+          <div className="flex gap-2 mb-2">
+            <input
+              type="url"
+              value={newRss}
+              onChange={(e) => {
+                setNewRss(e.target.value);
+                setRssError(null);
+              }}
+              placeholder="Enter RSS URL"
+              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20 transition"
+              onKeyDown={(e) => e.key === "Enter" && addRss()}
+            />
             <button
-              key={topic}
               type="button"
-              onClick={() => toggleMoltbook(topic)}
-              className={`px-3 py-1.5 rounded border text-sm ${
-                moltbookTopics.includes(topic)
-                  ? "border-amber-500/50 bg-amber-500/20 text-amber-400"
-                  : "border-zinc-600 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700"
-              }`}
+              onClick={() => addRss()}
+              disabled={!newRss.trim()}
+              className="px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 hover:border-zinc-600 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-zinc-800 disabled:hover:text-zinc-400 disabled:hover:border-zinc-700 transition"
             >
-              {topic}
+              <Plus className="w-4 h-4" />
             </button>
-          ))}
+          </div>
+
+          {rssError && (
+            <p className="text-sm text-red-400 mb-3">{rssError}</p>
+          )}
+
+          {/* Presets */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {PRESET_RSS.map((p) => {
+              const selected = rssUrls.includes(p.url);
+              return (
+                <button
+                  key={p.url}
+                  type="button"
+                  onClick={() => {
+                    if (selected) {
+                      setRssUrls(rssUrls.filter((u) => u !== p.url));
+                    } else {
+                      addRss(p.url);
+                    }
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition ${
+                    selected
+                      ? "border border-amber-500/40 bg-amber-500/15 text-amber-400"
+                      : "border border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700 hover:border-zinc-600"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected items */}
+          {rssUrls.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-3 border-t border-zinc-800/50">
+              {rssUrls.map((url, i) => (
+                <span
+                  key={`${url}-${i}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-sm text-zinc-300 max-w-[240px]"
+                >
+                  <span className="truncate">{url.replace(/^https?:\/\//, "")}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeRss(i)}
+                    className="text-zinc-500 hover:text-red-400 transition shrink-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-      </section>
 
-      <LivePreviewCard
-        githubRepos={githubRepos}
-        githubUsers={githubUsers}
-        rssUrls={rssUrls}
-        moltbookTopics={moltbookTopics}
-      />
+        {/* Moltbook Section */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 sm:p-8">
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="w-8 h-8 rounded-lg border border-zinc-700 bg-zinc-800 flex items-center justify-center">
+              <Hash className="w-4 h-4 text-zinc-300" />
+            </div>
+            <h3 className="text-base font-semibold text-white">
+              Moltbook Topics
+              <span className="text-xs font-normal text-zinc-500 ml-2">optional</span>
+            </h3>
+          </div>
+          <p className="text-sm text-zinc-500 mb-5 ml-[42px]">
+            Follow AI agent communities on Moltbook. Requires a Moltbook API key &mdash; you can add this later in Settings.
+          </p>
 
-      <div className="flex justify-between pt-4">
+          <div className="flex flex-wrap gap-2">
+            {PRESET_MOLTBOOK.map((topic) => {
+              const selected = moltbookTopics.includes(topic);
+              return (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => toggleMoltbook(topic)}
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition ${
+                    selected
+                      ? "border border-amber-500/40 bg-amber-500/15 text-amber-400"
+                      : "border border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700 hover:border-zinc-600"
+                  }`}
+                >
+                  {topic}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Live preview */}
+        <LivePreviewCard
+          githubRepos={githubRepos}
+          githubUsers={githubUsers}
+          rssUrls={rssUrls}
+          moltbookTopics={moltbookTopics}
+        />
+      </div>
+
+      {/* ── Navigation ──────────────────────────────── */}
+      <div className="flex items-center justify-between mt-10 pt-8 border-t border-zinc-800/50">
         <Link
           href="/"
-          className="text-zinc-500 hover:text-zinc-300"
+          className="text-sm text-zinc-500 hover:text-zinc-300 transition"
         >
           Skip for Now
         </Link>
         <Link
           href={canContinue ? "/onboard/2" : "#"}
-          className={`px-4 py-2 rounded-lg ${
+          className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition ${
             canContinue
-              ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30"
+              ? "bg-amber-500 text-black hover:bg-amber-400 shadow-lg shadow-amber-500/20"
               : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
           }`}
           onClick={(e) => !canContinue && e.preventDefault()}
         >
           Continue
+          <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
     </div>

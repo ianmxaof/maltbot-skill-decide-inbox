@@ -1,84 +1,49 @@
 "use client";
 
-import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Moon } from "lucide-react";
 
 interface OnboardLayoutProps {
   step: number;
   totalSteps: number;
-  onBack?: () => void;
-  onContinue?: () => void;
-  continueLabel?: string;
-  showBack?: boolean;
-  showContinue?: boolean;
   children: React.ReactNode;
 }
 
 export function OnboardLayout({
   step,
   totalSteps,
-  onBack,
-  onContinue,
-  continueLabel = "Continue",
-  showBack = true,
-  showContinue = true,
   children,
 }: OnboardLayoutProps) {
-  const backHref = step > 1 ? `/onboard/${step - 1}` : "/";
-  const nextHref = step < totalSteps ? `/onboard/${step + 1}` : "/home";
-
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-      <div className="flex-1 max-w-2xl mx-auto w-full px-6 py-12">
-        <div className="mb-8">
-          <div className="flex gap-1 mb-4">
+    <main className="min-h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden">
+      {/* Background gradient — matches landing page hero */}
+      <div className="absolute inset-0 bg-gradient-to-b from-amber-500/5 via-transparent to-transparent" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-amber-500/[0.03] rounded-full blur-3xl" />
+
+      <div className="relative max-w-3xl mx-auto w-full px-6 pt-16 pb-12 sm:pt-20 sm:pb-16">
+        {/* Branding — same as landing hero */}
+        <div className="flex items-center justify-center gap-3 mb-10">
+          <Moon className="w-8 h-8 text-amber-400" />
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500">
+            The Nightly Build
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mb-12">
+          <div className="flex gap-2">
             {Array.from({ length: totalSteps }).map((_, i) => (
               <div
                 key={i}
-                className={`h-1 flex-1 rounded ${
+                className={`h-1 flex-1 rounded-full transition-all duration-500 ${
                   i + 1 <= step ? "bg-amber-500" : "bg-zinc-800"
                 }`}
               />
             ))}
           </div>
-          <p className="text-sm text-zinc-500">
-            Step {step} of {totalSteps}
-          </p>
         </div>
+
+        {/* Step content */}
         {children}
-        <div className="flex items-center justify-between mt-12 gap-4">
-          <div>
-            {showBack && (
-              <Link
-                href={step > 1 ? backHref : "/"}
-                className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-200"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Back
-              </Link>
-            )}
-          </div>
-          <div>
-            {showContinue && onContinue ? (
-              <button
-                type="button"
-                onClick={onContinue}
-                className="inline-flex items-center gap-1 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition"
-              >
-                {continueLabel}
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <Link
-                href={nextHref}
-                className="inline-flex items-center gap-1 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition"
-              >
-                {continueLabel}
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-            )}
-          </div>
-        </div>
       </div>
     </main>
   );
