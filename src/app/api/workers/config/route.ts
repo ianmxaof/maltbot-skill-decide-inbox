@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     const { workerId, action } = parsed.data;
 
     if (action === "add_watcher") {
-      const watcher = parsed.data.watcher as WatcherConfig;
+      const watcher = parsed.data.watcher as unknown as WatcherConfig;
       const config = await addWatcherToConfig(workerId, watcher);
       return NextResponse.json(config);
     }
