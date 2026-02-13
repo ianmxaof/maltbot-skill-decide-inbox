@@ -87,7 +87,8 @@ Respond with ONLY valid JSON, no markdown fences, no explanation:
     return keywordFallback(item, config);
   }
 
-  const score = clamp(parsed.score ?? 0, 0, 1);
+  const rawScore = typeof parsed.score === "number" ? parsed.score : 0;
+  const score = clamp(rawScore, 0, 1);
   const keywordBoost = calculateKeywordBoost(item, config.keywords);
   const finalScore = clamp(score + keywordBoost, 0, 1);
 
