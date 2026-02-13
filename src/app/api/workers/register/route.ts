@@ -18,7 +18,7 @@ import { validateWorkerAuth } from "@/lib/worker-auth";
 const RegisterWorkerSchema = z.object({
   pairId: z.string().min(1, "pairId is required"),
   name: z.string().min(1, "name is required"),
-  aspect: z.string().min(1, "aspect is required"),
+  aspect: z.enum(["golem", "prometheus", "odin", "hermes", "custom"]),
   hostname: z.string().min(1, "hostname is required"),
   ollamaModel: z.string().min(1, "ollamaModel is required"),
   platform: z.string().default("unknown"),
