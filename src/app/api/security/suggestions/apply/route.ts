@@ -13,7 +13,7 @@ import {
 
 const ApplySuggestionSchema = z.object({
   id: z.string().optional(),
-  suggestion: z.record(z.unknown()).optional(),
+  suggestion: z.record(z.string(), z.unknown()).optional(),
 }).refine(
   (data) => data.id !== undefined || data.suggestion !== undefined,
   { message: "suggestion object or id required" }

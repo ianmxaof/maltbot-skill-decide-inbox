@@ -18,7 +18,7 @@ const PostScheduleSchema = z.object({
   type: z.enum(["daily_briefing", "weekly_report", "reminder", "heartbeat", "custom"]),
   cron: z.string().min(1, "Missing cron expression (e.g. 0 8 * * * for 8am daily)"),
   label: z.string().optional(),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET() {

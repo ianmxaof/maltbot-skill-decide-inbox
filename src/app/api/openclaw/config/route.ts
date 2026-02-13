@@ -11,7 +11,7 @@ import { readConfig, patchConfig } from "@/lib/openclaw-config";
 
 const PatchConfigSchema = z.object({
   raw: z.string().optional(),
-  partial: z.record(z.unknown()).optional(),
+  partial: z.record(z.string(), z.unknown()).optional(),
   baseHash: z.string().optional(),
 });
 

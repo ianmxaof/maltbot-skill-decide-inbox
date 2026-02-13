@@ -17,13 +17,13 @@ import type { WorkerConfig, WatcherConfig } from "@/types/worker";
 // ── Zod schemas ────────────────────────────────────────────
 const PutConfigSchema = z.object({
   workerId: z.string().min(1, "workerId is required"),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 const AddWatcherSchema = z.object({
   workerId: z.string().min(1, "workerId is required"),
   action: z.literal("add_watcher"),
-  watcher: z.record(z.unknown()).refine((v) => v !== null && v !== undefined, {
+  watcher: z.record(z.string(), z.unknown()).refine((v) => v !== null && v !== undefined, {
     message: "watcher object required",
   }),
   watcherId: z.string().optional(),
@@ -33,7 +33,7 @@ const RemoveWatcherSchema = z.object({
   workerId: z.string().min(1, "workerId is required"),
   action: z.literal("remove_watcher"),
   watcherId: z.string().min(1, "watcherId required"),
-  watcher: z.record(z.unknown()).optional(),
+  watcher: z.record(z.string(), z.unknown()).optional(),
 });
 
 const PostConfigSchema = z.discriminatedUnion("action", [
