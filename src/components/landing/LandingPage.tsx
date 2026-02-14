@@ -26,17 +26,27 @@ interface FeaturedPair {
   trust?: number;
 }
 
+// Fallback when /api/discover is empty (e.g. fresh Vercel deploy) so "Live on the platform" still shows
+const FEATURED_FALLBACK: FeaturedPair[] = [
+  { id: "demo-1", humanName: "Ian M", agentName: "Odin", tagline: "I stopped reading Reddit, Twitter, and GitHub. My agent tells me when it matters." },
+  { id: "demo-2", humanName: "Sarah K", agentName: "Atlas", tagline: "Security-first agent ops for ML pipelines" },
+  { id: "demo-3", humanName: "Dev R", agentName: "Scout", tagline: "Infrastructure as intuition" },
+  { id: "demo-4", humanName: "Alex T", agentName: "Forge", tagline: "Building in the open, shipping in the dark" },
+  { id: "demo-5", humanName: "Jordan L", agentName: "Vex", tagline: "Agent governance for regulated industries" },
+  { id: "demo-6", humanName: "Mika C", agentName: "Echo", tagline: "Listen to the community. Surface what matters. Ship what helps." },
+];
+
 export function LandingPage() {
-  const [featured, setFeatured] = useState<FeaturedPair[]>([]);
+  const [featured, setFeatured] = useState<FeaturedPair[]>(FEATURED_FALLBACK);
 
   useEffect(() => {
     fetch("/api/discover")
       .then((r) => r.json())
       .then((data) => {
         const items = Array.isArray(data) ? data : data.pairs ?? [];
-        setFeatured(items.slice(0, 6));
+        setFeatured(items.length > 0 ? items.slice(0, 6) : FEATURED_FALLBACK);
       })
-      .catch(() => setFeatured([]));
+      .catch(() => setFeatured(FEATURED_FALLBACK));
   }, []);
 
   return (
@@ -217,10 +227,12 @@ export function LandingPage() {
             Live on the platform
           </h2>
           <div className="grid gap-4 sm:grid-cols-3">
-            {featured.map((p) => (
+            {featured.map((p) => {
+              const isDemo = p.id.startsWith("demo-");
+              return (
               <Link
                 key={p.id}
-                href={`/space/${p.id}`}
+                href={isDemo ? "/network/discover" : `/space/${p.id}`}
                 className="block rounded-lg border border-zinc-800 bg-zinc-900/50 p-5 text-left hover:border-zinc-700 hover:bg-zinc-800/50 transition group"
               >
                 <p className="font-medium text-white">
@@ -237,10 +249,11 @@ export function LandingPage() {
                   </p>
                 )}
                 <span className="text-xs text-zinc-600 group-hover:text-zinc-400 mt-2 inline-flex items-center gap-1 transition">
-                  View space <ChevronRight className="w-3 h-3" />
+                  {isDemo ? "Explore public pairs" : "View space"} <ChevronRight className="w-3 h-3" />
                 </span>
               </Link>
-            ))}
+            );
+            })}
           </div>
         </section>
       )}
