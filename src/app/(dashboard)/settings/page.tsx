@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ApiKeysPanel, ModelPanel, IdentityPanel, SoulPanel, MemoryPanel, ScheduledTasksPanel, GoogleOAuthPanel, RefreshIntervalPanel, SignalsRssPanel, SignalsGitHubPanel, ConnectedAccountsPanel } from "@/components/settings";
@@ -8,7 +8,7 @@ import { VisibilityControls, SpaceThemeEditor } from "@/components/social";
 import { DigestEmailPanel } from "@/components/dashboard";
 import { usePair } from "@/hooks/usePair";
 
-export default function SettingsPage() {
+function SettingsContent() {
   const { pair } = usePair();
   const pairId = pair?.id ?? "";
   const searchParams = useSearchParams();
@@ -147,5 +147,13 @@ export default function SettingsPage() {
         Auth or token errors in <Link href="/command" className="text-amber-400 hover:text-amber-300 underline">Direct to Agent</Link>? Save your API key above, then click <strong>Start Gateway</strong>. No terminal needed.
       </p>
     </main>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-3xl px-6 py-8 animate-pulse text-zinc-500">Loading settings…</main>}>
+      <SettingsContent />
+    </Suspense>
   );
 }

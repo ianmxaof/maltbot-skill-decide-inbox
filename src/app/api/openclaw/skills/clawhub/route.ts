@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { SkillCard } from "@/types/dashboard";
 
+export const dynamic = "force-dynamic";
+
 const CLAWHUB_API = "https://clawdhub.com/api/v1/skills";
 const PAGE_TIMEOUT_MS = 8000;
 const MAX_PAGES = 50; // safety limit

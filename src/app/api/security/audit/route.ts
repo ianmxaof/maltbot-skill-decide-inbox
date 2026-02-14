@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSecurityMiddleware } from "@/lib/security/security-middleware";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/security/audit
  * Returns audit log. Query: since (ISO), result, limit

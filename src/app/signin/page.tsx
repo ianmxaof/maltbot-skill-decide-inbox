@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Moon } from "lucide-react";
@@ -9,7 +10,7 @@ const devBypassEnabled =
   typeof process !== "undefined" &&
   process.env.NEXT_PUBLIC_DEV_BYPASS === "true";
 
-export default function SignInPage() {
+function SignInContent() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
   const [email, setEmail] = useState("dev@local");
@@ -131,5 +132,13 @@ export default function SignInPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center"><p className="text-zinc-500">Loading…</p></main>}>
+      <SignInContent />
+    </Suspense>
   );
 }

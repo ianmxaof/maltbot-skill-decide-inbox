@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAnomalyDetector } from "@/lib/security/anomaly-detector";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/security/anomalies
  * Returns anomaly events. Query: since (ISO date), limit (number)
