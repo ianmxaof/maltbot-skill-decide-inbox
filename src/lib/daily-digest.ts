@@ -104,10 +104,11 @@ export async function generateDailyDigest(pairId?: string): Promise<DailyDigest>
   const workerSection = await buildWorkerSection(periodStart);
   sections.push(workerSection);
 
-  // Build summary
-  const totalDecisions = decideSection.items.find((i) => i.label === "Total decisions")?.value ?? 0;
-  const blockedOps = securitySection.items.find((i) => i.label === "Blocked")?.value ?? 0;
-  const activePerms = permSection.items.find((i) => i.label === "Active permissions")?.value ?? 0;
+  // Build summary (coerce to number for comparisons; DigestItem.value is string | number)
+  const totalDecisions = Number(decideSection.items.find((i) => i.label === "Total decisions")?.value ?? 0);
+  const blockedOps = Number(securitySection.items.find((i) => i.label === "Blocked")?.value ?? 0);
+  const activePerms = Number(permSection.items.find((i) => i.label === "Active permissions")?.value ?? 0);
+  const expiredPermsNum = Number(expiredPerms);
 
   healthScore = Math.max(0, Math.min(100, healthScore));
 
@@ -115,7 +116,7 @@ export async function generateDailyDigest(pairId?: string): Promise<DailyDigest>
     `${totalDecisions} decision${totalDecisions !== 1 ? "s" : ""} in the last 24h`,
     blockedOps > 0 ? `${blockedOps} operation${blockedOps !== 1 ? "s" : ""} blocked` : null,
     `${activePerms} active timed permission${activePerms !== 1 ? "s" : ""}`,
-    expiredPerms > 0 ? `${expiredPerms} permission${expiredPerms !== 1 ? "s" : ""} expired` : null,
+    expiredPermsNum > 0 ? `${expiredPermsNum} permission${expiredPermsNum !== 1 ? "s" : ""} expired` : null,
     pair ? `Agent pair: ${pair.name ?? activePairId}` : null,
   ]
     .filter(Boolean)
