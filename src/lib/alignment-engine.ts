@@ -270,7 +270,7 @@ export async function detectEmergentGroups(
     if (neighbors.size < minGroupSize - 1) continue;
 
     // Form cluster from this node and its neighbors
-    const cluster = [fp.pairId, ...neighbors].filter(id => !visited.has(id));
+    const cluster = [fp.pairId, ...Array.from(neighbors)].filter(id => !visited.has(id));
     if (cluster.length < minGroupSize) continue;
 
     // Mark visited
