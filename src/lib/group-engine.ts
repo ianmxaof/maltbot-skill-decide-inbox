@@ -101,7 +101,7 @@ function computeGroupFingerprint(
 
   // Shared domains
   const domains = members.flatMap((m) => m.topDomains);
-  const domainSet = [...new Set(domains)].slice(0, 3);
+  const domainSet = Array.from(new Set(domains)).slice(0, 3);
 
   const velocityLabel =
     dominantVelocity === "fast" ? "Fast-moving" :

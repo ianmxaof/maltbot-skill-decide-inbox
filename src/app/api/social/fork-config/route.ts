@@ -129,5 +129,5 @@ export async function POST(req: NextRequest) {
 }
 
 function dedupe(arr: string[]): string[] {
-  return [...new Set(arr)];
+  return Array.from(new Set(arr));
 }

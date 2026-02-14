@@ -82,7 +82,7 @@ export function TopicConstellation({ nodes, accentColor }: Props) {
   const height = 240;
 
   // Collect unique categories present
-  const presentCategories = [...new Set(nodes.map(n => n.category))];
+  const presentCategories = Array.from(new Set(nodes.map(n => n.category)));
 
   return (
     <div className="space-y-2">

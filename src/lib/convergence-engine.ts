@@ -110,7 +110,7 @@ export async function detectConvergences(
   const convergences: SignalConvergence[] = [];
 
   for (const [key, signals] of byKey) {
-    const uniquePairIds = [...new Set(signals.map((s) => s.pairId))];
+    const uniquePairIds = Array.from(new Set(signals.map((s) => s.pairId)));
     if (uniquePairIds.length < 2) continue;
 
     const first = signals.reduce((a, b) => (a.at < b.at ? a : b));
