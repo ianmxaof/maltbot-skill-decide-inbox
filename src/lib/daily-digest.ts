@@ -117,7 +117,7 @@ export async function generateDailyDigest(pairId?: string): Promise<DailyDigest>
     blockedOps > 0 ? `${blockedOps} operation${blockedOps !== 1 ? "s" : ""} blocked` : null,
     `${activePerms} active timed permission${activePerms !== 1 ? "s" : ""}`,
     expiredPermsNum > 0 ? `${expiredPermsNum} permission${expiredPermsNum !== 1 ? "s" : ""} expired` : null,
-    pair ? `Agent pair: ${pair.name ?? activePairId}` : null,
+    pair ? `Agent pair: ${pair.humanName ?? activePairId}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
