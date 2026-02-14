@@ -16,8 +16,8 @@ import { getGroups, setGroups, getMemberships, setMemberships } from "./network-
 function jaccard(a: string[], b: string[]): number {
   const setA = new Set(a);
   const setB = new Set(b);
-  const intersection = [...setA].filter((x) => setB.has(x));
-  const union = new Set([...setA, ...setB]);
+  const intersection = Array.from(setA).filter((x) => setB.has(x));
+  const union = new Set(Array.from(setA).concat(Array.from(setB)));
   if (union.size === 0) return 0;
   return intersection.length / union.size;
 }
