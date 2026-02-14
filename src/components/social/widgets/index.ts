@@ -1,0 +1,9 @@
+export { DecisionChartWidget } from "./DecisionChartWidget";
+export { GovernanceGaugeWidget } from "./GovernanceGaugeWidget";
+export { AgentUptimeWidget } from "./AgentUptimeWidget";
+export { RssTickerWidget } from "./RssTickerWidget";
+export { GithubHeatmapWidget } from "./GithubHeatmapWidget";
+export { ShippedThisWeekWidget } from "./ShippedThisWeekWidget";
+export { ContextMapWidget } from "./ContextMapWidget";
+export { ReadingListWidget } from "./ReadingListWidget";
+export { CustomMarkdownWidget } from "./CustomMarkdownWidget";

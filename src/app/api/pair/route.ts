@@ -15,6 +15,8 @@ import {
 } from "@/lib/agent-pair-store";
 import type { CreatePairInput } from "@/lib/agent-pair-store";
 import { completeOnboarding } from "@/lib/disclosure-store";
+import { addFollow } from "@/lib/social-store";
+import { getFirstPairId } from "@/lib/badges-engine";
 
 const CreatePairSchema = z.object({
   humanName: z.string().trim().min(1, "humanName is required"),
@@ -99,6 +101,15 @@ export async function POST(req: NextRequest) {
     await setActivePairId(pair.id);
     // Initialize disclosure state — transition from onboarding → activation
     await completeOnboarding(pair.id).catch((e) => console.error("[pair] completeOnboarding failed:", e));
+
+    // Auto-follow the "First Pair" (Tom) — every new user gets a first friend
+    const firstPairId = getFirstPairId();
+    if (pair.id !== firstPairId) {
+      await addFollow(pair.id, firstPairId).catch((e) =>
+        console.error("[pair] auto-follow first pair failed:", e)
+      );
+    }
+
     return NextResponse.json({ success: true, pair });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to create pair";

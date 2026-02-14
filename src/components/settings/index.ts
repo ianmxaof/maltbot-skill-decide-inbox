@@ -8,3 +8,4 @@ export { GoogleOAuthPanel } from "./GoogleOAuthPanel";
 export { RefreshIntervalPanel } from "./RefreshIntervalPanel";
 export { SignalsRssPanel } from "./SignalsRssPanel";
 export { SignalsGitHubPanel } from "./SignalsGitHubPanel";
+export { ConnectedAccountsPanel } from "./ConnectedAccountsPanel";
