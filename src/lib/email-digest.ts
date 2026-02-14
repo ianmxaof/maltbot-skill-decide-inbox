@@ -123,6 +123,10 @@ export async function sendDigestEmail(pairId: string): Promise<{
     digest = await generateDailyDigest(pairId);
   }
 
+  if (!digest) {
+    return { sent: false, error: "No digest available" };
+  }
+
   // Build email HTML
   const html = buildDigestEmailHtml(digest);
 
