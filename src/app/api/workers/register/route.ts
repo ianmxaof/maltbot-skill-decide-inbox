@@ -14,6 +14,17 @@ import {
 } from "@/lib/worker-store";
 import { validateWorkerAuth } from "@/lib/worker-auth";
 
+const capabilityEnum = z.enum([
+  "web_monitor",
+  "github_monitor",
+  "reddit_monitor",
+  "code_analysis",
+  "text_generation",
+  "image_analysis",
+  "summarization",
+  "classification",
+]);
+
 // ── Zod schema ─────────────────────────────────────────────
 const RegisterWorkerSchema = z.object({
   pairId: z.string().min(1, "pairId is required"),
@@ -23,7 +34,7 @@ const RegisterWorkerSchema = z.object({
   ollamaModel: z.string().min(1, "ollamaModel is required"),
   platform: z.string().default("unknown"),
   ollamaUrl: z.string().default("http://localhost:11434"),
-  capabilities: z.array(z.string()).default([]),
+  capabilities: z.array(capabilityEnum).default([]),
   version: z.string().default("0.1.0"),
 });
 
