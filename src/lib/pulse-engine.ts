@@ -117,7 +117,7 @@ export async function computePulse(
     }
   }
 
-  const trendingSignals: TrendingSignal[] = [...signalMap.entries()]
+  const trendingSignals: TrendingSignal[] = Array.from(signalMap.entries())
     .filter(([, v]) => v.pairs.size >= 2)
     .map(([key, v]) => ({
       key,

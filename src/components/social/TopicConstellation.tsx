@@ -44,7 +44,7 @@ export function TopicConstellation({ nodes, accentColor }: Props) {
     }
 
     // Assign each category a sector
-    const catList = [...categories.keys()];
+    const catList = Array.from(categories.keys());
     const sectorAngle = (2 * Math.PI) / Math.max(catList.length, 1);
 
     const positions: Array<{

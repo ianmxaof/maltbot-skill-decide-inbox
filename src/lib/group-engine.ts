@@ -94,7 +94,7 @@ function computeGroupFingerprint(
       hourCounts.set(h, (hourCounts.get(h) ?? 0) + 1);
     }
   }
-  const peakHours = [...hourCounts.entries()]
+  const peakHours = Array.from(hourCounts.entries())
     .filter(([, c]) => c >= Math.ceil(members.length * 0.5))
     .map(([h]) => h)
     .sort((a, b) => a - b);
@@ -138,7 +138,7 @@ function computeSharedSources(members: GovernanceFingerprint[]): SharedSource[] 
     }
   }
 
-  return [...sourceCounts.entries()]
+  return Array.from(sourceCounts.entries())
     .filter(([, v]) => v.count >= Math.ceil(members.length * 0.5))
     .map(([name, v]) => ({
       name,
@@ -227,7 +227,7 @@ export async function detectGroups(
     for (const fp of memberFps) {
       for (const d of fp.topDomains) domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1);
     }
-    const topDomains = [...domainCounts.entries()]
+    const topDomains = Array.from(domainCounts.entries())
       .filter(([, c]) => c >= Math.ceil(memberIds.length * 0.5))
       .sort((a, b) => b[1] - a[1])
       .map(([d]) => d);

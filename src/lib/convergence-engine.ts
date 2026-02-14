@@ -126,7 +126,7 @@ export async function detectConvergences(
     for (const s of signals) {
       actionCounts.set(s.action, (actionCounts.get(s.action) ?? 0) + 1);
     }
-    const actions: ConvergenceAction[] = [...actionCounts.entries()].map(([action, count]) => ({
+    const actions: ConvergenceAction[] = Array.from(actionCounts.entries()).map(([action, count]) => ({
       action,
       count,
       percentage: count / signals.length,

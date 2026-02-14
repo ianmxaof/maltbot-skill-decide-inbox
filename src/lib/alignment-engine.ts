@@ -284,7 +284,7 @@ export async function detectEmergentGroups(
     const allDomains = clusterFps.flatMap(f => f.topDomains);
     const domainCounts = new Map<string, number>();
     allDomains.forEach(d => domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1));
-    const sharedDomains = [...domainCounts.entries()]
+    const sharedDomains = Array.from(domainCounts.entries())
       .filter(([, count]) => count >= Math.ceil(cluster.length * 0.5))
       .map(([domain]) => domain);
 
