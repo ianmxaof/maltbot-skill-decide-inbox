@@ -41,20 +41,31 @@ let _adapter: KVAdapter | null = null;
 function getAdapter(): KVAdapter {
   if (_adapter) return _adapter;
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL?.trim();
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   const tursoUrl = process.env.TURSO_DATABASE_URL;
   const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
-  if (supabaseUrl && supabaseKey) {
+  const isValidSupabaseUrl =
+    supabaseUrl &&
+    (supabaseUrl.startsWith("http://") || supabaseUrl.startsWith("https://")) &&
+    supabaseUrl.length > 10;
+
+  if (isValidSupabaseUrl && supabaseKey) {
     _adapter = new SupabaseAdapter(supabaseUrl, supabaseKey);
     console.log("[db] Using Supabase database");
   } else if (tursoUrl) {
     _adapter = new TursoAdapter(tursoUrl, tursoToken ?? "");
     console.log("[db] Using Turso database");
   } else {
+    if (process.env.NODE_ENV === "production" && (supabaseUrl || supabaseKey)) {
+      console.warn(
+        "[db] WARNING: SUPABASE_URL must be a valid https:// URL. " +
+          "Using filesystem adapter. Set SUPABASE_URL (e.g. https://your-project.supabase.co) and SUPABASE_SERVICE_ROLE_KEY for a persistent database."
+      );
+    }
     _adapter = new FileAdapter();
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production" && !supabaseUrl && !supabaseKey) {
       console.warn(
         "[db] WARNING: Using filesystem adapter in production. " +
           "Set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY or TURSO_DATABASE_URL for a persistent database."

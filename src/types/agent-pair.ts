@@ -56,6 +56,8 @@ export interface AgentHumanPair {
   soulMd?: string;
   visibility: Visibility;
   contextSources: ContextSources;
+  /** Linked project (work target) from onboarding */
+  primaryProjectId?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -10,6 +10,7 @@
 export type IntegrationProviderId =
   | 'hackernews'
   | 'spotify'
+  | 'github'
   | 'github_profile'
   | 'reddit'
   | 'bluesky'

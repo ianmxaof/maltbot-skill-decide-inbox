@@ -7,11 +7,16 @@ import "@/lib/load-env";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import GitHubProvider from "next-auth/providers/github";
 
 /** Env keys used by auth. Pass from getEnvFromFile() so Next.js doesn't inline empty values. */
 export type AuthEnv = {
   AUTH_GOOGLE_ID?: string;
   AUTH_GOOGLE_SECRET?: string;
+  AUTH_GITHUB_ID?: string;
+  AUTH_GITHUB_SECRET?: string;
+  GITHUB_ID?: string;
+  GITHUB_SECRET?: string;
   AUTH_SECRET?: string;
   NEXTAUTH_URL?: string;
   AUTH_DEV_BYPASS_SECRET?: string;
@@ -19,12 +24,26 @@ export type AuthEnv = {
 
 function getAuthOptions(env?: AuthEnv): NextAuthOptions {
   const e = env ?? process.env;
+  const baseUrl = (e.NEXTAUTH_URL ?? "").replace(/\/$/, "");
   const providers: NextAuthOptions["providers"] = [
     GoogleProvider({
       clientId: e.AUTH_GOOGLE_ID ?? "",
       clientSecret: e.AUTH_GOOGLE_SECRET ?? "",
     }),
   ];
+  const githubId = e.AUTH_GITHUB_ID ?? e.GITHUB_ID ?? "";
+  const githubSecret = e.AUTH_GITHUB_SECRET ?? e.GITHUB_SECRET ?? "";
+  if (githubId && githubSecret) {
+    providers.push(
+      GitHubProvider({
+        clientId: githubId,
+        clientSecret: githubSecret,
+        authorization: baseUrl
+          ? { params: { redirect_uri: `${baseUrl}/api/auth/callback/github` } }
+          : undefined,
+      })
+    );
+  }
   // Dev bypass: set AUTH_DEV_BYPASS_SECRET in .env.local to sign in without Google
   if (e.AUTH_DEV_BYPASS_SECRET) {
     providers.push(

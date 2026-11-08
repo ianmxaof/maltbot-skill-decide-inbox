@@ -7,8 +7,20 @@ import type { OperatingPhilosophy, Visibility } from "@/types/agent-pair";
 
 const STORAGE_KEY = "nightly-build-onboard-draft";
 
+export type AgentFramework = "openclaw" | "agent-zero" | "none";
+
 export interface OnboardDraft {
   step: number;
+  apiKeyProvider?: string;
+  apiKeyMasked?: string;
+  modelId?: string;
+  agentFramework?: AgentFramework;
+  /** Project created during Import Your Project step */
+  projectId?: string;
+  /** User chose to skip importing a project */
+  projectSkipped?: boolean;
+  /** Channel user intends to connect (discord, telegram, whatsapp) */
+  channelIntent?: string;
   contextSources?: {
     githubRepos: string[];
     githubUsers: string[];

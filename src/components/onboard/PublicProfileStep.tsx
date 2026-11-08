@@ -73,8 +73,8 @@ export function PublicProfileStep() {
   }, []);
 
   useEffect(() => {
-    const draft: OnboardDraft = getOnboardDraft() ?? { step: 4 };
-    draft.step = 4;
+    const draft: OnboardDraft = getOnboardDraft() ?? { step: 6 };
+    draft.step = 6;
     draft.visibility = visibility;
     draft.humanName = humanName;
     draft.agentName = agentName;
@@ -106,6 +106,7 @@ export function PublicProfileStep() {
             rssUrls: [],
             moltbookTopics: [],
           },
+          primaryProjectId: draft.projectId,
           soulMd,
           activityPattern: {
             heartbeatIntervalMinutes: draft.heartbeatMinutes ?? 30,
@@ -117,15 +118,37 @@ export function PublicProfileStep() {
       if (!data.success) {
         throw new Error(data.error ?? "Failed to create pair");
       }
+      const apiKeyProvider = draft.apiKeyProvider && draft.apiKeyMasked && draft.apiKeyMasked !== "skipped" ? draft.apiKeyProvider : undefined;
+      const modelId = draft.modelId;
+      const projectId = draft.projectId;
       clearOnboardDraft();
       showToast("Profile saved");
-      // Fire first-scan in background — don't await
+
       if (data.pair?.id) {
-        fetch("/api/workers/first-scan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pairId: data.pair.id }),
-        }).catch((e) => console.error("[PublicProfileStep] first-scan failed:", e));
+        const pairId = data.pair.id;
+
+        try {
+          await fetch("/api/workers/first-scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pairId }),
+          });
+          if (apiKeyProvider) {
+            await fetch("/api/workers/first-brief", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ pairId, apiKeyProvider, modelId, projectId }),
+            });
+          }
+          await fetch("/api/integrations/github/migrate-onboard", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ pairId }),
+          });
+        } catch (e) {
+          console.error("[PublicProfileStep] first-scan/first-brief failed:", e);
+        }
       }
       router.push("/home");
     } catch (e) {
@@ -145,7 +168,7 @@ export function PublicProfileStep() {
       {/* ── Header ──────────────────────────────────── */}
       <div className="text-center mb-10">
         <p className="text-sm font-semibold uppercase tracking-wider text-amber-400 mb-3">
-          Step 4 of 4
+          Step 6 of 6
         </p>
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
           Share Your Journey?
@@ -279,7 +302,7 @@ export function PublicProfileStep() {
       {/* ── Navigation ──────────────────────────────── */}
       <div className="flex items-center justify-between mt-10 pt-8 border-t border-zinc-800/50">
         <Link
-          href="/onboard/3"
+          href="/onboard/5"
           className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition"
         >
           <ChevronLeft className="w-4 h-4" />

@@ -190,6 +190,7 @@ export async function createPair(input: CreatePairInput): Promise<AgentHumanPair
     soulMd: input.soulMd,
     visibility: input.visibility ?? "private",
     contextSources: input.contextSources ?? { ...DEFAULT_CONTEXT },
+    primaryProjectId: input.primaryProjectId,
     createdAt: now,
     updatedAt: now,
   };

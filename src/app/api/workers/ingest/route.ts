@@ -25,12 +25,9 @@ import {
   buildActivitySummary,
 } from "@/lib/ingest-utils";
 import type { IngestItem, IngestResponse } from "@/types/worker";
+import { kv } from "@/lib/db";
 
-import { promises as fs } from "fs";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), ".data");
-const DECIDE_QUEUE_FILE = "worker-decide-queue.json";
+const DECIDE_QUEUE_KEY = "worker-decide-queue";
 
 interface DecideQueueItem {
   id: string;
@@ -54,29 +51,17 @@ interface DecideQueueItem {
   decidedAt?: string;
 }
 
-async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
-
 async function readDecideQueue(): Promise<DecideQueueItem[]> {
   try {
-    const raw = await fs.readFile(
-      path.join(DATA_DIR, DECIDE_QUEUE_FILE),
-      "utf-8"
-    );
-    return JSON.parse(raw);
+    const data = await kv.get<DecideQueueItem[]>(DECIDE_QUEUE_KEY);
+    return Array.isArray(data) ? data : [];
   } catch {
     return [];
   }
 }
 
 async function writeDecideQueue(items: DecideQueueItem[]): Promise<void> {
-  await ensureDir();
-  await fs.writeFile(
-    path.join(DATA_DIR, DECIDE_QUEUE_FILE),
-    JSON.stringify(items, null, 2),
-    "utf-8"
-  );
+  await kv.set(DECIDE_QUEUE_KEY, items);
 }
 
 function genId(prefix: string): string {

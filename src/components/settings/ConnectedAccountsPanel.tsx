@@ -224,7 +224,19 @@ export function ConnectedAccountsPanel({ pairId }: Props) {
                         Connect with Spotify
                       </span>
                     )}
-                    {isOAuth && provider.id !== "spotify" && (
+                    {isOAuth && provider.id === "github" && (
+                      <span
+                        className="text-[10px] font-medium px-2 py-0.5 rounded cursor-pointer transition"
+                        style={{ backgroundColor: provider.color + "20", color: provider.color }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.location.href = `/api/integrations/github/connect?pairId=${encodeURIComponent(pairId)}`;
+                        }}
+                      >
+                        Connect with GitHub
+                      </span>
+                    )}
+                    {isOAuth && provider.id !== "spotify" && provider.id !== "github" && (
                       <span className="text-[10px] text-zinc-600 bg-zinc-800 px-2 py-0.5 rounded">
                         Coming Soon
                       </span>

@@ -5,14 +5,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { parseBody } from "@/lib/validate";
-import { promises as fs } from "fs";
-import path from "path";
+import { kv } from "@/lib/db";
 import { getPairById } from "@/lib/agent-pair-store";
 import { recordWorkerIngest } from "@/lib/disclosure-store";
 import { validateWorkerAuth } from "@/lib/worker-auth";
 
-const DATA_DIR = path.join(process.cwd(), ".data");
-const DECIDE_QUEUE_FILE = "worker-decide-queue.json";
+const DECIDE_QUEUE_KEY = "worker-decide-queue";
 
 // ── Zod schema ─────────────────────────────────────────────
 const FirstScanSchema = z.object({
@@ -59,29 +57,17 @@ function genId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function ensureDir(): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
-
 async function readDecideQueue(): Promise<DecideQueueItem[]> {
   try {
-    const raw = await fs.readFile(
-      path.join(DATA_DIR, DECIDE_QUEUE_FILE),
-      "utf-8"
-    );
-    return JSON.parse(raw);
+    const data = await kv.get<DecideQueueItem[]>(DECIDE_QUEUE_KEY);
+    return Array.isArray(data) ? data : [];
   } catch {
     return [];
   }
 }
 
 async function writeDecideQueue(items: DecideQueueItem[]): Promise<void> {
-  await ensureDir();
-  await fs.writeFile(
-    path.join(DATA_DIR, DECIDE_QUEUE_FILE),
-    JSON.stringify(items, null, 2),
-    "utf-8"
-  );
+  await kv.set(DECIDE_QUEUE_KEY, items);
 }
 
 function stripTag(html: string): string {

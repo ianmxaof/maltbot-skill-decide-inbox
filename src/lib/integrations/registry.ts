@@ -44,6 +44,18 @@ const PROVIDERS: Record<IntegrationProviderId, IntegrationProvider> = {
     feedsSignals: false,
     hasWidget: true,
   },
+  github: {
+    id: "github",
+    name: "GitHub",
+    description: "Connect your GitHub account to import repos and use repo-based features",
+    icon: "Github",
+    color: "#f0f6fc",
+    authMethod: "oauth2",
+    connectionFields: [],
+    capabilities: ["profile_widget", "signal_feed", "activity_history"],
+    feedsSignals: true,
+    hasWidget: false,
+  },
   github_profile: {
     id: "github_profile",
     name: "GitHub Profile",

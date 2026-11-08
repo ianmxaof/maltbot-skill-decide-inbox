@@ -55,10 +55,10 @@ function FirstScanBanner({ pairId }: { pairId: string }) {
     const poll = async () => {
       try {
         const res = await fetch(
-          `/api/workers/ingest?pairId=${encodeURIComponent(pairId)}&status=pending`
+          `/api/decide/pending?pairId=${encodeURIComponent(pairId)}`
         );
         const data = await res.json();
-        const items = Array.isArray(data) ? data : [];
+        const items = Array.isArray(data.items) ? data.items : [];
         if (items.length > 0) {
           setItemCount(items.length);
           setScanning(false);

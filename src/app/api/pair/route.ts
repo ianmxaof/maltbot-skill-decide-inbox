@@ -54,6 +54,7 @@ const CreatePairSchema = z.object({
     }),
   soulMd: z.string().optional(),
   publicNarrative: z.string().optional(),
+  primaryProjectId: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {

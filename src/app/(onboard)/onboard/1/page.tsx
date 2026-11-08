@@ -3,7 +3,7 @@ import { ContextStep } from "@/components/onboard/ContextStep";
 
 export default function OnboardStep1Page() {
   return (
-    <OnboardLayout step={1} totalSteps={4}>
+    <OnboardLayout step={1} totalSteps={6}>
       <ContextStep />
     </OnboardLayout>
   );

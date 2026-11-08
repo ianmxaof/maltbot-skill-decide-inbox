@@ -49,7 +49,7 @@ export function PhilosophyStep() {
 
   useEffect(() => {
     const draft: OnboardDraft = getOnboardDraft() ?? { step: 3 };
-    draft.step = 3;
+    draft.step = 4;
     draft.operatingPhilosophy = operatingPhilosophy;
     setOnboardDraft(draft);
   }, [operatingPhilosophy]);
@@ -59,7 +59,7 @@ export function PhilosophyStep() {
       {/* ── Header ──────────────────────────────────── */}
       <div className="text-center mb-10">
         <p className="text-sm font-semibold uppercase tracking-wider text-amber-400 mb-3">
-          Step 3 of 4
+          Step 4 of 5
         </p>
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
           Define Your Working Agreement
@@ -124,14 +124,14 @@ export function PhilosophyStep() {
       {/* ── Navigation ──────────────────────────────── */}
       <div className="flex items-center justify-between mt-10 pt-8 border-t border-zinc-800/50">
         <Link
-          href="/onboard/2"
+          href="/onboard/3"
           className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition"
         >
           <ChevronLeft className="w-4 h-4" />
           Back
         </Link>
         <Link
-          href="/onboard/4"
+          href="/onboard/5"
           className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition shadow-lg shadow-amber-500/20"
         >
           Continue

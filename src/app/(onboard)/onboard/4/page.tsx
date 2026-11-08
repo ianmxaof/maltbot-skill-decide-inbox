@@ -1,10 +1,10 @@
 import { OnboardLayout } from "@/components/onboard/OnboardLayout";
-import { PublicProfileStep } from "@/components/onboard/PublicProfileStep";
+import { AgentConfigStep } from "@/components/onboard/AgentConfigStep";
 
 export default function OnboardStep4Page() {
   return (
-    <OnboardLayout step={4} totalSteps={4}>
-      <PublicProfileStep />
+    <OnboardLayout step={4} totalSteps={6}>
+      <AgentConfigStep />
     </OnboardLayout>
   );
 }
